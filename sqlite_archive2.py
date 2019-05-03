@@ -14,6 +14,7 @@ parser.add_argument("--db", "-d", name="db", type=str, help="SQLite DB filename.
 parser.add_argument("--table", "-t", name="table", type=str, help="Name of table to use.")
 parser.add_argument("--extract", "-x", name="extract", type="store_true", help="Activate extraction mode (creation mode is default).")
 parser.add_argument("--output-dir", "-o", name="out", type=str, help="Directory to output files to, if in extraction mode.")
+parser.add_argument("--debug", name="debug", action="store_true", help="Prints additional information.")
 parser.add_argument("files", nargs="+", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
@@ -87,3 +88,42 @@ class SQLiteArchive:
             else:
                 self.dbcon.commit()
                 print("done")
+    
+    def extract(self):
+        outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
+        if outputdir.is_file():
+            raise RuntimeError("The output directory specified points to a file.")
+        
+        if not outputdir.exists():
+            print("Creating outputdir directory...")
+            outputdir.mkdir(parents=True)
+        
+        query: str = "select pk, data from {} order by pk".format(args.table)
+        cursor: sqlite3.Cursor = self.dbcon.execute(query)
+
+        row: Any = cursor.fetchone()
+        while row:
+            try:
+                data: bytes = bytes(row[1])
+                name: Any = self.dbcon.execute("select filename from {} where pk == {}".format(args.table, str(row[0]))).fetchone()[0]
+                name = name.decode(sys.stdout.encoding) if sys.stdout.encoding else name.decode("utf-8")
+
+                outpath: pathlib.Path = outputdir.joinpath(name)
+                if not pathlib.Path(outpath.parent).exists():
+                    pathlib.Path(outpath.parent).mkdir(parents=True)
+                
+                print("Extracting {}...".format(str(outpath)), end =' ')
+                outpath.write_bytes(data)
+                print("done")
+            except sqlite3.OperationalError:
+                print("failed")
+                
+                if args.debug:
+                    exctype, value = sys.exc_info()[:2]
+                    print("Exception type = {}, value = {}".format(exctype, value))
+                
+                row = cursor.fetchone()
+                
+                continue  # Skip to next loop if error here
+        
+            row = cursor.fetchone()  # Normal end of loop
