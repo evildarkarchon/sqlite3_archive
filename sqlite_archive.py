@@ -13,7 +13,7 @@ parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports o
 parser.add_argument("--db", "-d", dest="db", type=str, help="SQLite DB filename.")
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract all files from a table instead of adding files.")
-parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode.", default=str(pathlib.Path.cwd()))
+parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--debug", dest="debug", action="store_true", help="Prints additional information.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
