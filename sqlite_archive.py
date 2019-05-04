@@ -12,7 +12,7 @@ from typing import Any
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, help="SQLite DB filename.")
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
-parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract all files from a table instead of adding files.")
+parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--debug", dest="debug", action="store_true", help="Prints additional information.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
@@ -70,7 +70,9 @@ class SQLiteArchive:
     (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique);""".format(args.table))
         self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc);""".format(args.table))
         self.dbcon.commit()
+
         dups = []
+        
         for i in self.files:
             try:
                 parents = sorted(pathlib.Path(i).parents)
@@ -110,13 +112,26 @@ class SQLiteArchive:
             print("Creating outputdir directory...")
             outputdir.mkdir(parents=True)
         
-        query: str = "select pk, data from {} order by pk".format(args.table)
-        query2: str = "select pk, image_data from {} order by pk".format(args.table)
+        if args.files and len(args.files) > 0:
+            questionmarks: Any = '?' * len(args.files)
+            query_files: str = "select pk, data from {0} order by pk where filename in ({1})".format(args.table, ','.join(questionmarks))
+            query_files2: str = "select pk, image_data from {0} order by pk where filename in ({1})".format(args.table, ','.join(questionmarks))
+        else:
+            query: str = "select pk, data from {} order by pk".format(args.table)
+            query2: str = "select pk, image_data from {} order by pk".format(args.table)
+        
         cursor: sqlite3.Cursor = None
+        
         try:
-            cursor = self.dbcon.execute(query)
+            if args.files and len(args.files) > 0:
+                cursor = self.dbcon.execute(query_files, tuple(args.files))
+            else:
+                cursor = self.dbcon.execute(query)
         except sqlite3.OperationalError:
-            cursor = self.dbcon.execute(query2)
+            if args.files and len(args.files) > 0:
+                cursor = self.dbcon.execute(query_files2, tuple(args.files))
+            else:
+                cursor = self.dbcon.execute(query2)
 
         row: Any = cursor.fetchone()
         while row:
