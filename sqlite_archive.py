@@ -70,7 +70,7 @@ class SQLiteArchive:
     (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique);""".format(args.table))
         self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc);""".format(args.table))
         self.dbcon.commit()
-
+        dups = []
         for i in self.files:
             try:
                 parents = sorted(pathlib.Path(i).parents)
@@ -87,7 +87,8 @@ class SQLiteArchive:
                     self.dbcon.execute("insert into {} (filename, data) values (?, ?)".format(args.table), (name, i.read_bytes()))
             except sqlite3.IntegrityError:
                 print("duplicate")
-
+                dups.append(name)
+                
                 if args.debug:
                     exctype, value = sys.exc_info()[:2]
                     print("Exception type = {}, value = {}".format(exctype, value))
@@ -96,6 +97,9 @@ class SQLiteArchive:
             else:
                 self.dbcon.commit()
                 print("done")
+            
+            if len(dups) > 0:
+                print("Duplicate files: {}".format(dups))
     
     def extract(self):
         outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
