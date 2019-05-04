@@ -100,7 +100,12 @@ class SQLiteArchive:
             outputdir.mkdir(parents=True)
         
         query: str = "select pk, data from {} order by pk".format(args.table)
-        cursor: sqlite3.Cursor = self.dbcon.execute(query)
+        query2: str = "select pk, image_data from {} order by pk".format(args.table)
+        cursor: sqlite3.Cursor = None
+        try:
+            cursor = self.dbcon.execute(query)
+        except sqlite3.OperationalError:
+            cursor = self.dbcon.execute(query2)
 
         row: Any = cursor.fetchone()
         while row:
