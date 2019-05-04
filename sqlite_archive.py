@@ -50,6 +50,8 @@ class SQLiteArchive:
         else:
             self.db.touch()
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
+            self.dbcon.execute("PRAGMA auto_vacuum = 1;")
+            self.dbcon.execute("VACUUM;")
         
         if args.extract:
             self.dbcon.text_factory = bytes
