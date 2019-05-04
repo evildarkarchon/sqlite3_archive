@@ -1,4 +1,4 @@
-# sqlite3_archive_py
+# sqlite3_archive
 
 Python version of my sqlite3_archive project. 
 
