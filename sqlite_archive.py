@@ -85,6 +85,11 @@ class SQLiteArchive:
                     self.dbcon.execute("insert into {} (filename, data) values (?, ?)".format(args.table), (name, i.read_bytes()))
             except sqlite3.IntegrityError:
                 print("duplicate")
+
+                if args.debug:
+                    exctype, value = sys.exc_info()[:2]
+                    print("Exception type = {}, value = {}".format(exctype, value))
+
                 continue
             else:
                 self.dbcon.commit()
