@@ -1,90 +1,131 @@
-#!/usr/bin/env python3
-
 from __future__ import annotations
 
-import glob
-import sqlite3
+import sys
 import argparse
+import sqlite3
 import pathlib
+import glob
+import atexit
 
-parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Puts files into an sqlite database as BLOB(s)')
-parser.add_argument("db", type=str, help='SQLite DB filename')
-parser.add_argument("table", type=str, help='SQLite DB table name containing BLOB(s)')
-parser.add_argument("files", nargs="*", help='Files to be archived in the SQLite Database')
+from typing import Any
+
+parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
+parser.add_argument("--db", "-d", dest="db", type=pathlib.Path, help="SQLite DB filename.")
+parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
+parser.add_argument("--extract", "-x", dest="extract", type="store_true", help="Activate extraction mode (creation mode is default).")
+parser.add_argument("--output-dir", "-o", dest="out", type=pathlib.Path, help="Directory to output files to, if in extraction mode.")
+parser.add_argument("--debug", dest="debug", action="store_true", help="Prints additional information.")
+parser.add_argument("files", dest = "files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
 
-if len(args.files) == 0:
-    print("No files specified, exiting.")
-    exit()
-
-db: pathlib.Path = pathlib.Path(args.db).resolve()
-files: list = []
-
 def globlist(listglob: list):
     outlist = []
-    for i in listglob:
-        if type(i) is str and "*" in i:
-            globs = glob.glob(i)
+    for a in listglob:
+        if type(a) is str and "*" in a:
+            globs = glob.glob(a)
             for x in globs:
                 outlist.append(pathlib.Path(x))
-        elif type(i) is pathlib.Path and i.is_file() or type(i) is str and pathlib.Path(i).is_file():
-            outlist.append(i)
-        elif type(i) is str and "*" not in listglob and pathlib.Path(i).is_file():
-            outlist.append(pathlib.Path(i))
-        elif type(i) is str and "*" not in listglob and pathlib.Path(i).is_dir() or type(i) is pathlib.Path and i.is_dir():
-            for y in pathlib.Path(i).rglob("*"):
+        elif type(a) is pathlib.Path and a.is_file() or type(a) is str and pathlib.Path(a).is_file():
+            outlist.append(a)
+        elif type(a) is str and "*" not in listglob and pathlib.Path(a).is_file():
+            outlist.append(pathlib.Path(a))
+        elif type(a) is str and "*" not in listglob and pathlib.Path(a).is_dir() or type(a) is pathlib.Path and a.is_dir():
+            for y in pathlib.Path(a).rglob("*"):
                 outlist.append(y)
         else:
-            globs = glob.glob(i)
+            globs = glob.glob(a)
             for x in globs:
                 outlist.append(pathlib.Path(x))
-    # intermediatelist = [item for sublist in outlist for item in sublist]
-    # outlist = intermediatelist
     outlist.sort()
     return outlist
 
-for i in args.files:
-    listglob = globlist(i)
-    for x in listglob:
-        if x.is_file():
-            out = str(x)
-            files.append(out)
-if len(files) == 0:
-    print("The file list is empty.")
-
-if db.is_file():
-    dbcon: sqlite3.Connection = sqlite3.connect(str(db))
-else:
-    db.touch()
-    dbcon: sqlite3.Connection = sqlite3.connect(str(db))
-data: list = []
-for i in files:
-    data.append(pathlib.Path(i))
-dbcon.execute("""create table if not exists {} \
-    (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique);""".format(args.table))
-dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc);""".format(args.table))
-dbcon.commit()
-
-for i in data:
-    try:
-        parents = sorted(pathlib.Path(i).parents)
-        if parents[0] == "." and len(parents) == 2:
-            name = str(i.relative_to(i.parent))
-        else:    
-            name = str(i.relative_to(parents[1]))
-    except IndexError:
-        name = str(i.relative_to(i.parent))
+class SQLiteArchive:
+    def __init__(self):
+        self.db: pathlib.Path = args.db.resolve()
+        self.files: list = []
+        
+        if self.db.is_file():
+            self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
+        else:
+            self.db.touch()
+            self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
+        
+        if args.extract:
+            self.dbcon.text_factory(bytes)
+        atexit.register(self.dbcon.close)
+        atexit.register(self.dbcon.execute, "PRAGMA optimize;")
+        
+        listglob: list = globlist(args.files)
+        for i in listglob:
+            if i.is_file():
+                out = str(i)
+                self.files.append(out)
+        if len(self.files) is 0:
+            raise RuntimeError("The file list is empty.")
     
-    try:
-        if i.is_file():
-            print("* Adding {} to {}...".format(name, args.table), end=' ')    
-            dbcon.execute("insert into {} (filename, data) values (?, ?)".format(args.table), (name, i.read_bytes()))
-    except sqlite3.IntegrityError:
-        print("duplicate")
-        continue
-    else:
-        dbcon.commit()
-        print("done")
-dbcon.execute('PRAGMA optimize;')
-dbcon.close()
+    def add(self):
+        self.dbcon.execute("""create table if not exists {} \
+    (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique);""".format(args.table))
+        self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc);""".format(args.table))
+        self.dbcon.commit()
+
+        for i in self.files:
+            try:
+                parents = sorted(pathlib.Path(i).parents)
+                if parents[0] == "." and len(parents) == 2:
+                    name = str(i.relative_to(i.parent))
+                else:    
+                    name = str(i.relative_to(parents[1]))
+            except IndexError:
+                name = str(i.relative_to(i.parent))
+    
+            try:
+                if i.is_file():
+                    print("* Adding {} to {}...".format(name, args.table), end=' ')    
+                    self.dbcon.execute("insert into {} (filename, data) values (?, ?)".format(args.table), (name, i.read_bytes()))
+            except sqlite3.IntegrityError:
+                print("duplicate")
+                continue
+            else:
+                self.dbcon.commit()
+                print("done")
+    
+    def extract(self):
+        outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
+        if outputdir.is_file():
+            raise RuntimeError("The output directory specified points to a file.")
+        
+        if not outputdir.exists():
+            print("Creating outputdir directory...")
+            outputdir.mkdir(parents=True)
+        
+        query: str = "select pk, data from {} order by pk".format(args.table)
+        cursor: sqlite3.Cursor = self.dbcon.execute(query)
+
+        row: Any = cursor.fetchone()
+        while row:
+            try:
+                data: bytes = bytes(row[1])
+                name: Any = self.dbcon.execute("select filename from {} where pk == {}".format(args.table, str(row[0]))).fetchone()[0]
+                name = name.decode(sys.stdout.encoding) if sys.stdout.encoding else name.decode("utf-8")
+
+                outpath: pathlib.Path = outputdir.joinpath(name)
+                if not pathlib.Path(outpath.parent).exists():
+                    pathlib.Path(outpath.parent).mkdir(parents=True)
+                
+                print("Extracting {}...".format(str(outpath)), end =' ')
+                outpath.write_bytes(data)
+                print("done")
+            except sqlite3.OperationalError:
+                print("failed")
+                
+                if args.debug:
+                    exctype, value = sys.exc_info()[:2]
+                    print("Exception type = {}, value = {}".format(exctype, value))
+                
+                row = cursor.fetchone()
+                
+                continue  # Skip to next loop if error here
+        
+            row = cursor.fetchone()  # Normal end of loop
