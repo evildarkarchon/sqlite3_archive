@@ -11,8 +11,8 @@ import hashlib
 from typing import Any
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
-parser.add_argument("--db", "-d", dest="db", type=str, help="SQLite DB filename.")
-parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
+parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
+parser.add_argument("--table", "-t", dest="table", type=str, required=True, help="Name of table to use.")
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--debug", dest="debug", action="store_true", help="Prints additional information.")
@@ -104,8 +104,8 @@ class SQLiteArchive:
                 self.dbcon.commit()
                 print("done")
             
-            if len(dups) > 0:
-                print("Duplicate files: {}".format(dups))
+        if len(dups) > 0:
+            print("Duplicate files: {}".format(dups))
     
     def extract(self):
         outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
