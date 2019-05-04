@@ -15,7 +15,7 @@ parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table
 parser.add_argument("--extract", "-x", dest="extract", type="store_true", help="Activate extraction mode (creation mode is default).")
 parser.add_argument("--output-dir", "-o", dest="out", type=pathlib.Path, help="Directory to output files to, if in extraction mode.")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Prints additional information.")
-parser.add_argument("files", dest = "files", nargs="+", help="Files to be archived in the SQLite Database.")
+parser.add_argument("files", dest = "files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
 
@@ -61,6 +61,8 @@ class SQLiteArchive:
             if i.is_file():
                 out = str(i)
                 self.files.append(out)
+        if len(self.files) is 0:
+            raise RuntimeError("The file list is empty.")
     
     def add(self):
         self.dbcon.execute("""create table if not exists {} \
