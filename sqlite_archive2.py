@@ -10,12 +10,12 @@ import atexit
 from typing import Any
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
-parser.add_argument("--db", "-d", name="db", type=str, help="SQLite DB filename.")
-parser.add_argument("--table", "-t", name="table", type=str, help="Name of table to use.")
-parser.add_argument("--extract", "-x", name="extract", type="store_true", help="Activate extraction mode (creation mode is default).")
-parser.add_argument("--output-dir", "-o", name="out", type=str, help="Directory to output files to, if in extraction mode.")
-parser.add_argument("--debug", name="debug", action="store_true", help="Prints additional information.")
-parser.add_argument("files", nargs="+", help="Files to be archived in the SQLite Database.")
+parser.add_argument("--db", "-d", dest="db", type=pathlib.Path, help="SQLite DB filename.")
+parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
+parser.add_argument("--extract", "-x", dest="extract", type="store_true", help="Activate extraction mode (creation mode is default).")
+parser.add_argument("--output-dir", "-o", dest="out", type=pathlib.Path, help="Directory to output files to, if in extraction mode.")
+parser.add_argument("--debug", dest="debug", action="store_true", help="Prints additional information.")
+parser.add_argument("files", dest = "files", nargs="+", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
 
@@ -42,7 +42,7 @@ def globlist(listglob: list):
 
 class SQLiteArchive:
     def __init__(self):
-        self.db: pathlib.Path = pathlib.Path(args.db).resolve()
+        self.db: pathlib.Path = args.db.resolve()
         self.files: list = []
         
         if self.db.is_file():
