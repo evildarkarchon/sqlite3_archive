@@ -52,7 +52,7 @@ class SQLiteArchive:
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
         
         if args.extract:
-            self.dbcon.text_factory(bytes)
+            self.dbcon.text_factory = bytes
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
         
@@ -60,7 +60,7 @@ class SQLiteArchive:
         for i in listglob:
             if i.is_file():
                 self.files.append(i)
-        if len(self.files) is 0:
+        if len(self.files) is 0 and not args.extract:
             raise RuntimeError("The file list is empty.")
     
     def add(self):
