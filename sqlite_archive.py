@@ -6,6 +6,7 @@ import sqlite3
 import pathlib
 import glob
 import atexit
+import hashlib
 
 from typing import Any
 
@@ -32,7 +33,7 @@ def globlist(listglob: list):
             outlist.append(pathlib.Path(a))
         elif type(a) is str and "*" not in listglob and pathlib.Path(a).is_dir() or type(a) is pathlib.Path and a.is_dir():
             for y in pathlib.Path(a).rglob("*"):
-                outlist.append(y)
+                outlist.append(pathlib.Path(y))
         else:
             globs = glob.glob(a)
             for x in globs:
@@ -60,15 +61,15 @@ class SQLiteArchive:
         
         listglob: list = globlist(args.files)
         for i in listglob:
-            if i.is_file():
+            if pathlib.Path(i).is_file():
                 self.files.append(i)
         if len(self.files) is 0 and not args.extract:
             raise RuntimeError("The file list is empty.")
     
     def add(self):
         self.dbcon.execute("""create table if not exists {} \
-    (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique);""".format(args.table))
-        self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc);""".format(args.table))
+        (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique, hash text);""".format(args.table))
+        self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc, "hash" asc);""".format(args.table))
         self.dbcon.commit()
 
         dups = []
@@ -84,9 +85,12 @@ class SQLiteArchive:
                 name = str(i.relative_to(i.parent))
     
             try:
+                filehash = hashlib.sha256()
+                data: bytes = i.read_bytes()
+                filehash.update(data)
                 if i.is_file():
-                    print("* Adding {} to {}...".format(name, args.table), end=' ')    
-                    self.dbcon.execute("insert into {} (filename, data) values (?, ?)".format(args.table), (name, i.read_bytes()))
+                    print("* Adding {} to {}...".format(name, args.table), end=' ')
+                    self.dbcon.execute("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, filehash.hexdigest()))
             except sqlite3.IntegrityError:
                 print("duplicate")
                 dups.append(name)
@@ -109,27 +113,35 @@ class SQLiteArchive:
             raise RuntimeError("The output directory specified points to a file.")
         
         if not outputdir.exists():
-            print("Creating outputdir directory...")
+            print("Creating output directory...")
             outputdir.mkdir(parents=True)
-        
+        if args.debug:
+            print(len(self.files))
+            print(repr(tuple(self.files)))
         if args.files and len(args.files) > 0:
-            questionmarks: Any = '?' * len(args.files)
-            query_files: str = "select pk, data from {0} order by pk where filename in ({1})".format(args.table, ','.join(questionmarks))
-            query_files2: str = "select pk, image_data from {0} order by pk where filename in ({1})".format(args.table, ','.join(questionmarks))
+            if len(args.files) > 1:
+                questionmarks: Any = '?' * len(args.files)
+                query_files: str = "select pk, data from {0} where filename in ({1}) order by pk".format(args.table, ','.join(questionmarks))
+                query_files2: str = "select pk, image_data from {0} where filename in ({1}) order by pk (".format(args.table, ','.join(questionmarks))
+            elif args.files and len(args.files) == 1:
+                query_files: str = "select pk, data from {} where filename == ? order by pk".format(args.table)
+                query_files2: str = "select pk, image_data from {} where filename == ? order by pk".format(args.table)     
         else:
             query: str = "select pk, data from {} order by pk".format(args.table)
             query2: str = "select pk, image_data from {} order by pk".format(args.table)
-        
+        if args.debug:
+            print(query_files)
+            print(query_files2)
         cursor: sqlite3.Cursor = None
         
         try:
             if args.files and len(args.files) > 0:
-                cursor = self.dbcon.execute(query_files, tuple(args.files))
+                cursor = self.dbcon.execute(query_files, tuple(self.files))
             else:
                 cursor = self.dbcon.execute(query)
         except sqlite3.OperationalError:
             if args.files and len(args.files) > 0:
-                cursor = self.dbcon.execute(query_files2, tuple(args.files))
+                cursor = self.dbcon.execute(query_files2, tuple(self.files))
             else:
                 cursor = self.dbcon.execute(query2)
 
