@@ -63,8 +63,8 @@ class SQLiteArchive:
         for i in listglob:
             if pathlib.Path(i).is_file():
                 self.files.append(i)
-        if len(self.files) is 0 and not args.extract:
-            raise RuntimeError("The file list is empty.")
+        if len(self.files) == 0 and not args.extract:
+            raise RuntimeError("No files were found.")
     
     def add(self):
         self.dbcon.execute("""create table if not exists {} \
