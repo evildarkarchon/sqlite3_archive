@@ -24,7 +24,7 @@ def globlist(listglob: list):
     outlist = []
     for a in listglob:
         if type(a) is str and "*" in a:
-            globs = glob.glob(a)
+            globs = glob.glob(a, recursive=True)
             for x in globs:
                 outlist.append(pathlib.Path(x))
         elif type(a) is pathlib.Path and a.is_file() or type(a) is str and pathlib.Path(a).is_file():
@@ -33,9 +33,9 @@ def globlist(listglob: list):
             outlist.append(pathlib.Path(a))
         elif type(a) is str and "*" not in listglob and pathlib.Path(a).is_dir() or type(a) is pathlib.Path and a.is_dir():
             for y in pathlib.Path(a).rglob("*"):
-                outlist.append(pathlib.Path(y))
+                outlist.append(y)
         else:
-            globs = glob.glob(a)
+            globs = glob.glob(a, recursive=True)
             for x in globs:
                 outlist.append(pathlib.Path(x))
     outlist.sort()
