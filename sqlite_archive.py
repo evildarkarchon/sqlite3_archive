@@ -221,6 +221,7 @@ class SQLiteArchive:
             self.dbcon.execute("VACUUM;")
         except sqlite3.OperationalError:
             print("failed")
+            raise
         else:
             print("done")
 
