@@ -19,7 +19,7 @@ parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory 
 parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping.")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
 parser.add_argument("--dups-file", type=str, dest="dups", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
-parser.add_argument("--no-dups", action="store_true", dest="nodups", help="Disables storing the duplicate list as a json file.")
+parser.add_argument("--no-dups", action="store_true", dest="nodups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
