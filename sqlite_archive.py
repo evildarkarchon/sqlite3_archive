@@ -27,10 +27,10 @@ parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite
 args: argparse.Namespace = parser.parse_args()
 
 def globlist(listglob: list):
-    outlist = []
+    outlist: list = []
     for a in listglob:
         if type(a) is str and "*" in a:
-            globs = glob.glob(a, recursive=True)
+            globs: list = glob.glob(a, recursive=True)
             for x in globs:
                 outlist.append(pathlib.Path(x))
         elif type(a) is pathlib.Path and a.is_file() or type(a) is str and pathlib.Path(a).is_file():
@@ -41,7 +41,7 @@ def globlist(listglob: list):
             for y in pathlib.Path(a).rglob("*"):
                 outlist.append(y)
         else:
-            globs = glob.glob(a, recursive=True)
+            globs: list = glob.glob(a, recursive=True)
             for x in globs:
                 outlist.append(pathlib.Path(x))
     outlist.sort()
@@ -92,15 +92,15 @@ class SQLiteArchive:
             # except IndexError:
             #     name = str(i.relative_to(i.parent))
             filehash = hashlib.sha256()
-            fullpath = i.resolve()
-            name = str(fullpath.relative_to(fullpath.parent))
-            relparent = str(fullpath.relative_to(fullpath.parent.parent))
+            fullpath: pathlib.Path = i.resolve()
+            name: str = str(fullpath.relative_to(fullpath.parent))
+            relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
             try:                
                 if i.is_file():
                     exists = len(self.dbcon.execute("select filename from {} where filename = ?".format(args.table), (name,)).fetchall())
                     data: bytes = i.read_bytes()
                     filehash.update(data)
-                    digest = filehash.hexdigest()
+                    digest: str = filehash.hexdigest()
                     if args.replace and exists > 0:
                         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ')
                         self.dbcon.execute("delete from {} where hash == ? and not filename == ?".format(args.table), (digest, name))
@@ -122,7 +122,7 @@ class SQLiteArchive:
                         dups[relparent] = query[0]
 
                 for z in list(dups.keys()):
-                    if name in z:
+                    if name == z:
                         try:
                             dups.pop(z)
                         except KeyError:
@@ -199,17 +199,19 @@ class SQLiteArchive:
             except sqlite3.OperationalError:
                 print("failed")
                 
+                # if args.debug:
+                #     exctype, value = sys.exc_info()[:2]
+                #     print("Exception type = {}, value = {}".format(exctype, value))
+                                
                 if args.debug:
-                    exctype, value = sys.exc_info()[:2]
-                    print("Exception type = {}, value = {}".format(exctype, value))
-                
-                row = cursor.fetchone()
-                
-                continue  # Skip to next loop if error here
+                    raise
+                else:
+                    row = cursor.fetchone()
+                    continue
         
             row = cursor.fetchone()  # Normal end of loop
 
-sqlitearchive = SQLiteArchive()
+sqlitearchive: SQLiteArchive = SQLiteArchive()
 
 if args.extract:
     sqlitearchive.extract()
