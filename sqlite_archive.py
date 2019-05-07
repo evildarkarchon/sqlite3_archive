@@ -35,7 +35,7 @@ if not args.table and not args.compact:
         elif argpath.is_dir():
             f = argpath.name
         if f:
-            args.table = f.replace(".", "_").replace(' ', '_')
+            args.table = f.replace(".", "_").replace(' ', '_').replace("'", '_')
         else:
             raise RuntimeError("--table must be specified if compact mode is not active.")
     elif args.extract and not args.files:
