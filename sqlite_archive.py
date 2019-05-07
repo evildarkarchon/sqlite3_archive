@@ -113,7 +113,7 @@ class SQLiteArchive:
                     raise
                 print("duplicate")
                 
-                query = self.dbcon.execute("select filename from {} where hash == ?".format(args.table), (digest)).fetchall()
+                query = self.dbcon.execute("select filename from {} where hash == ?".format(args.table), (digest,)).fetchall()
                 if args.fulldups and type(query) is list and len(query) >= 1:
                     if query[0] is not None:
                         dups[str(fullpath)] = query[0]
