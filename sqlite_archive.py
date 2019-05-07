@@ -13,7 +13,7 @@ from typing import Any
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
-parser.add_argument("--table", "-t", dest="table", type=str, required=True, help="Name of table to use.")
+parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping.")
@@ -22,9 +22,13 @@ parser.add_argument("--dups-file", type=str, dest="dups", help="Location of the 
 parser.add_argument("--no-dups", action="store_true", dest="nodups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
 parser.add_argument("--full-dup-path", dest="fulldups", action="store_true", help="Use the full path of the duplicate file as the key for the duplicates list.")
+parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while, use sparingly)")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
+
+if not args.table and not args.compact:
+    raise RuntimeError("--table must be specified if compact mode is not active.")
 
 def globlist(listglob: list):
     outlist: list = []
@@ -63,7 +67,8 @@ class SQLiteArchive:
         if args.extract:
             self.dbcon.text_factory = bytes
         atexit.register(self.dbcon.close)
-        atexit.register(self.dbcon.execute, "PRAGMA optimize;")
+        if not args.compact:
+            atexit.register(self.dbcon.execute, "PRAGMA optimize;")
         
         listglob: list = globlist(args.files)
         for i in listglob:
@@ -122,7 +127,7 @@ class SQLiteArchive:
                         dups[relparent] = query[0]
 
                 for z in list(dups.keys()):
-                    if name == z:
+                    if query[0][0] in z:
                         try:
                             dups.pop(z)
                         except KeyError:
@@ -210,10 +215,20 @@ class SQLiteArchive:
                     continue
         
             row = cursor.fetchone()  # Normal end of loop
+    def compact(self):
+        print("Compacting the database, this might take a while...", end = ' ')
+        try:
+            self.dbcon.execute("VACUUM;")
+        except sqlite3.OperationalError:
+            print("failed")
+        else:
+            print("done")
 
 sqlitearchive: SQLiteArchive = SQLiteArchive()
 
-if args.extract:
+if args.compact:
+    sqlitearchive.compact()
+elif args.extract:
     sqlitearchive.extract()
 else:
     sqlitearchive.add()
