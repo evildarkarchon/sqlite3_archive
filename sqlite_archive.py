@@ -7,6 +7,7 @@ import pathlib
 import glob
 import atexit
 import hashlib
+import json
 
 from typing import Any
 
@@ -17,6 +18,8 @@ parser.add_argument("--extract", "-x", dest="extract", action="store_true", help
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping.")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
+parser.add_argument("--dups-file", type=str, dest="dups", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
+parser.add_argument("--no-duplicate-list", action="store_true", dest="nodups", help="Disables storing the duplicate list as a json file.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
@@ -72,19 +75,24 @@ class SQLiteArchive:
         (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique, hash text);""".format(args.table))
         # self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc, "hash" asc);""".format(args.table))
         self.dbcon.commit()
+        dups: dict = {}
+        if pathlib.Path(args.dups).is_file() and not args.nodups:
+            with open(args.dups) as dupsjson:
+                dups = json.load(dupsjson)
 
-        dups = {}
-        
         for i in self.files:
-            try:
-                parents = sorted(pathlib.Path(i).parents)
-                if parents[0] == "." and len(parents) == 2:
-                    name = str(i.relative_to(i.parent))
-                else:    
-                    name = str(i.relative_to(parents[1]))
-            except IndexError:
-                name = str(i.relative_to(i.parent))
+            # try:
+            #     parents = sorted(pathlib.Path(i).parents)
+            #     if parents[0] == "." and len(parents) == 2:
+            #         name = str(i.relative_to(i.parent))
+            #     else:    
+            #         name = str(i.relative_to(parents[1]))
+            # except IndexError:
+            #     name = str(i.relative_to(i.parent))
             filehash = hashlib.sha256()
+            fullpath = i.resolve()
+            name = str(fullpath.relative_to(fullpath.parent))
+            relparent = str(fullpath.relative_to(fullpath.parent.parent))
             try:                
                 if i.is_file():
                     exists = len(self.dbcon.execute("select filename from {} where filename = ?".format(args.table), (name,)).fetchall())
@@ -102,7 +110,7 @@ class SQLiteArchive:
                 if args.debug:
                     raise
                 print("duplicate")
-                dups[name] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (digest,)).fetchall()
+                dups[relparent] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (digest,)).fetchall()[0]
                 
                 #if args.debug:
                 #    exctype, value = sys.exc_info()[:2]
@@ -114,7 +122,10 @@ class SQLiteArchive:
                 print("done")
             
         if len(dups) > 0:
-            print("Duplicate files: {}".format(dups))
+            print("Duplicate files: {}".format(json.dumps(dups, indent=4)))
+            if not args.nodups:
+                with open(args.dups, 'w') as dupsjson:
+                    json.dump(dups, dupsjson, indent=4)
     
     def extract(self):
         outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
