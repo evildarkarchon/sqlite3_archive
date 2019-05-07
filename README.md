@@ -6,4 +6,4 @@ This script's purpose is to store files as BLOBs in an sqlite3 database, along w
 
 This script requires at least version 3.7 of python because it takes advantage of features added in that version.
 
-This program by default will print a list of files that failed the UNIQUE constraint along with the file it conflicted with. It will also by default store said duplicates list in a json file named duplicates.json (by default, although you can change the location). If you leave the ability to save the json file and you keep using the same file name, you can keep track of duplicates from other directories as well.
+This program by default will print a list of files that failed the UNIQUE constraint along with the file it conflicted with. It will also by default store said duplicates list in a json file named duplicates.json (by default, although you can change the location). If you leave the ability to save the json file enabled and you keep using the same file name, you can keep track of duplicates from other directories as well.
