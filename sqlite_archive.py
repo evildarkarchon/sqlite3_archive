@@ -39,8 +39,7 @@ if not args.table and not args.compact:
         else:
             raise RuntimeError("--table must be specified if compact mode is not active.")
     elif args.extract and not args.files:
-        raise RuntimeError("--table must be specified if compact mode is not active.")
-    
+        raise RuntimeError("--table must be specified if compact mode is not active.")    
 
 def globlist(listglob: list):
     outlist: list = []
@@ -131,7 +130,7 @@ class SQLiteArchive:
                 print("duplicate")
                 
                 query = self.dbcon.execute("select filename from {} where hash == ?".format(args.table), (digest,)).fetchall()
-                if args.fulldups and type(query) is list and len(query) >= 1:
+                if args.fulldups and type(query) is list and len(query) >= 1 or str(pathlib.Path.cwd()) not in str(fullpath) and type(query) is list and len(query) >= 1:
                     if query[0] is not None:
                         dups[str(fullpath)] = query[0]
                 elif not args.fulldups and type(query) is list and len(query) >= 1:
