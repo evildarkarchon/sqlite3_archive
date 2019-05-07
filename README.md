@@ -13,3 +13,7 @@ This script by default will print a list of files that failed the UNIQUE constra
 ---
 
 If you use this on Windows, I suggest using [PyInstaller](https://pypi.org/project/PyInstaller/) to pack this script into an executable so that you don't have to invoke python on the script every time you want to use it. I also suggest using its --onefile option so that you don't have a bunch of dlls cluttering up the directory, but that's personal preference. After all that, just put the executable (and other files in the dist directory, if you don't use the --onefile option) into a directory and add that directory to your PATH environment variable and you can just execute it by name whenever you want to use it.
+
+---
+
+If you don't specify a table name on the command line, it will use the first entry in the files list as the basis for the table name, replacing any periods or spaces with underscores (SQL places special significance on these characters, so using them in the table name will freak the query processor and/or python out). It will attempt to remove the file extension from the file name if the first entry on the files list is a file, but if your file has multiple extensions, it will only strip the first one (at least until I can figure out some way to strip all file extensions).
