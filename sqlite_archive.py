@@ -120,6 +120,13 @@ class SQLiteArchive:
                 elif not args.fulldups and type(query) is list and len(query) >= 1:
                     if query[0] is not None:
                         dups[relparent] = query[0]
+                x = list(dups.keys())
+                for z in x:
+                    if name in z:
+                        try:
+                            dups.pop(z)
+                        except KeyError:
+                            pass
                 
                 #if args.debug:
                 #    exctype, value = sys.exc_info()[:2]
