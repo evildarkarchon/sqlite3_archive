@@ -16,7 +16,7 @@ parser.add_argument("--table", "-t", dest="table", type=str, required=True, help
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping.")
-parser.add_argument("--debug", dest="debug", action="store_true", help="Prints additional information.")
+parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
@@ -73,7 +73,7 @@ class SQLiteArchive:
         # self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc, "hash" asc);""".format(args.table))
         self.dbcon.commit()
 
-        dups = []
+        dups = {}
         
         for i in self.files:
             try:
@@ -84,25 +84,25 @@ class SQLiteArchive:
                     name = str(i.relative_to(parents[1]))
             except IndexError:
                 name = str(i.relative_to(i.parent))
-    
-            try:
-                filehash = hashlib.sha256()
-                data: bytes = i.read_bytes()
-                filehash.update(data)
+            filehash = hashlib.sha256()
+            try:                
                 if i.is_file():
                     exists = len(self.dbcon.execute("select filename from {} where filename = ?".format(args.table), (name,)).fetchall())
+                    data: bytes = i.read_bytes()
+                    filehash.update(data)
+                    digest = filehash.hexdigest()
                     if args.replace and exists > 0:
                         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ')
-                        self.dbcon.execute("delete from {} where hash == ? and not filename == ?".format(args.table), (filehash.hexdigest(), name))
-                        self.dbcon.execute("update {} set data = ?, hash = ? where filename = ?".format(args.table), (data, filehash.hexdigest(), name))
+                        self.dbcon.execute("delete from {} where hash == ? and not filename == ?".format(args.table), (digest, name))
+                        self.dbcon.execute("update {} set data = ?, hash = ? where filename = ?".format(args.table), (data, digest, name))
                     else:
                         print("* Adding {} to {}...".format(name, args.table), end=' ')
-                        self.dbcon.execute("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, filehash.hexdigest()))
+                        self.dbcon.execute("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
             except sqlite3.IntegrityError:
                 if args.debug:
                     raise
                 print("duplicate")
-                dups.append(name)
+                dups[str(i)] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (filehash.hexdigest(),)).fetchall()
                 
                 #if args.debug:
                 #    exctype, value = sys.exc_info()[:2]
