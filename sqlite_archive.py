@@ -102,7 +102,7 @@ class SQLiteArchive:
                 if args.debug:
                     raise
                 print("duplicate")
-                dups[str(i)] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (filehash.hexdigest(),)).fetchall()
+                dups[name] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (digest,)).fetchall()
                 
                 #if args.debug:
                 #    exctype, value = sys.exc_info()[:2]
