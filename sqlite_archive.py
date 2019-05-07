@@ -21,6 +21,7 @@ parser.add_argument("--debug", dest="debug", action="store_true", help="Supress 
 parser.add_argument("--dups-file", type=str, dest="dups", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
 parser.add_argument("--no-dups", action="store_true", dest="nodups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
+parser.add_argument("--full-dup-path", dest="fulldups", action="store_true", help="Use the full path of the duplicate file as the key for the duplicates list.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
@@ -111,7 +112,10 @@ class SQLiteArchive:
                 if args.debug:
                     raise
                 print("duplicate")
-                dups[relparent] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (digest,)).fetchall()[0]
+                if args.fulldups:
+                    dups[str(fullpath)] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (digest,)).fetchall()[0]
+                else:
+                    dups[relparent] = self.dbcon.execute("select filename from {} where hash = ?".format(args.table), (digest,)).fetchall()[0]
                 
                 #if args.debug:
                 #    exctype, value = sys.exc_info()[:2]
