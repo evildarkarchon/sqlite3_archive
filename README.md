@@ -1,6 +1,8 @@
 # sqlite3_archive
 
-Python version of my sqlite3_archive project. This script requires at least version 3.7 of python because it takes advantage of features added in that version. I only test this script on Windows since that's the operating system of the machine I write this script on.
+Python version of my sqlite3_archive project. This script requires at least version 3.7 of python because it takes advantage of features added in that version. I only test this script on Windows since that's the operating system of the machine I write this script on. 
+
+If you use this on Windows, I suggest using [PyInstaller](https://pypi.org/project/PyInstaller/) to pack this script into an executable so that you don't have to invoke python on the script every time you want to use it. I also suggest using its --onefile option so that you don't have a bunch of dlls cluttering up the directory, but that's personal preference. After all that, just put the executable (and other files in the dist directory, if you don't use the --onefile option) into a directory and add that directory to your PATH environment variable and you can just execute it by name whenever you want to use it.
 
 This script's purpose is to store files as BLOBs in an sqlite3 database, along with a couple pieces of metadata (file name and sha256 hash). More metadata will be added as needed. The schema is not frozen yet, so newer versions of this script may be incompatible with older databases. Luckily, there are plenty of tools (including the original sqlite3 command line program) that can read sqlite3 databases.
 
