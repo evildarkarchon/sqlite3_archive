@@ -128,7 +128,7 @@ class SQLiteArchive:
             
         if len(dups) > 0:
             if not args.hidedups:
-                print("Duplicate files: {}".format(json.dumps(dups, indent=4)))
+                print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
             if not args.nodups:
                 with open(args.dups, 'w') as dupsjson:
                     json.dump(dups, dupsjson, indent=4)
