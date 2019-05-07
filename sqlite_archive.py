@@ -28,7 +28,19 @@ parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite
 args: argparse.Namespace = parser.parse_args()
 
 if not args.table and not args.compact:
-    raise RuntimeError("--table must be specified if compact mode is not active.")
+    if args.files:
+        argpath = pathlib.Path(args.files[0])
+        if argpath.is_file():
+            f = argpath.stem.name
+        elif argpath.is_dir():
+            f = argpath.name
+        if f:
+            args.table = f.replace(".", "_").replace(' ', '_')
+        else:
+            raise RuntimeError("--table must be specified if compact mode is not active.")
+    elif args.extract and not args.files:
+        raise RuntimeError("--table must be specified if compact mode is not active.")
+    
 
 def globlist(listglob: list):
     outlist: list = []
