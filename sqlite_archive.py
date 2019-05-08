@@ -30,6 +30,7 @@ args: argparse.Namespace = parser.parse_args()
 if not args.table and not args.compact:
     if args.files:
         argpath = pathlib.Path(args.files[0])
+        f = None
         if argpath.is_file():
             f = argpath.stem.name
         elif argpath.is_dir():
