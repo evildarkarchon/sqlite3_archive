@@ -122,7 +122,7 @@ class SQLiteArchive:
                     raise
 
                 query = self.dbcon.execute("select filename from {} where hash == ?".format(args.table), (digest,)).fetchall()
-                if query and query[0] and len(query[0] >= 1):
+                if query and query[0][0] and len(query[0][0] >= 1):
                     print("duplicate")
                 else:
                     raise
