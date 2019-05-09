@@ -120,9 +120,13 @@ class SQLiteArchive:
             except sqlite3.IntegrityError:
                 if args.debug:
                     raise
-                print("duplicate")
-                
+
                 query = self.dbcon.execute("select filename from {} where hash == ?".format(args.table), (digest,)).fetchall()
+                if query and query[0] and len(query[0] >= 1):
+                    print("duplicate")
+                else:
+                    raise
+                
                 if args.fulldups and type(query) is list and len(query) >= 1 or str(pathlib.Path.cwd()) not in str(fullpath) and type(query) is list and len(query) >= 1:
                     if query[0] is not None:
                         dups[str(fullpath)] = query[0]
