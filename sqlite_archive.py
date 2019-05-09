@@ -39,8 +39,10 @@ if not args.table and not args.compact:
             args.table = f.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "")
         else:
             raise RuntimeError("--table must be specified if compact mode is not active.")
-    elif args.extract or not args.files:
-        raise RuntimeError("--table must be specified if compact mode is not active.")    
+    elif args.files:
+        raise RuntimeError("--table must be specified if compact mode is not active.")
+    elif args.extract:
+        raise RuntimeError("--table must be specified in extract mode.")
 
 def globlist(listglob: list):
     outlist: list = []
@@ -90,9 +92,7 @@ class SQLiteArchive:
             raise RuntimeError("No files were found.")
     
     def add(self):
-        self.dbcon.execute("""create table if not exists {} \
-        (filename text not null unique, data blob not null, hash text not null unique);""".format(args.table))
-        # self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc, "hash" asc);""".format(args.table))
+        self.dbcon.execute("""CREATE TABLE IF NOT EXISTS {} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         self.dbcon.commit()
         dups: dict = {}
         if pathlib.Path(args.dups).is_file() and not args.nodups:
@@ -100,14 +100,6 @@ class SQLiteArchive:
                 dups = json.load(dupsjson)
 
         for i in self.files:
-            # try:
-            #     parents = sorted(pathlib.Path(i).parents)
-            #     if parents[0] == "." and len(parents) == 2:
-            #         name = str(i.relative_to(i.parent))
-            #     else:    
-            #         name = str(i.relative_to(parents[1]))
-            # except IndexError:
-            #     name = str(i.relative_to(i.parent))
             filehash = hashlib.sha256()
             fullpath: pathlib.Path = i.resolve()
             name: str = str(fullpath.relative_to(fullpath.parent))
@@ -120,8 +112,6 @@ class SQLiteArchive:
                     digest: str = filehash.hexdigest()
                     if args.replace and exists > 0:
                         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ')
-                        # self.dbcon.execute("delete from {} where hash == ? and not filename == ?".format(args.table), (digest, name))
-                        # self.dbcon.execute("update {} set data = ?, hash = ? where filename = ?".format(args.table), (data, digest, name))
                         self.dbcon.execute("insert or replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
                     else:
                         print("* Adding {} to {}...".format(name, args.table), end=' ')
