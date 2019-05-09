@@ -120,8 +120,9 @@ class SQLiteArchive:
                     digest: str = filehash.hexdigest()
                     if args.replace and exists > 0:
                         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ')
-                        self.dbcon.execute("delete from {} where hash == ? and not filename == ?".format(args.table), (digest, name))
-                        self.dbcon.execute("update {} set data = ?, hash = ? where filename = ?".format(args.table), (data, digest, name))
+                        # self.dbcon.execute("delete from {} where hash == ? and not filename == ?".format(args.table), (digest, name))
+                        # self.dbcon.execute("update {} set data = ?, hash = ? where filename = ?".format(args.table), (data, digest, name))
+                        self.dbcon.execute("insert or replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
                     else:
                         print("* Adding {} to {}...".format(name, args.table), end=' ')
                         self.dbcon.execute("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
@@ -175,14 +176,14 @@ class SQLiteArchive:
         if args.files and len(args.files) > 0:
             if len(args.files) > 1:
                 questionmarks: Any = '?' * len(args.files)
-                query_files: str = "select pk, data from {0} where filename in ({1}) order by pk".format(args.table, ','.join(questionmarks))
-                query_files2: str = "select pk, image_data from {0} where filename in ({1}) order by pk (".format(args.table, ','.join(questionmarks))
+                query_files: str = "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks))
+                query_files2: str = "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks))
             elif args.files and len(args.files) == 1:
-                query_files: str = "select pk, data from {} where filename == ? order by pk".format(args.table)
-                query_files2: str = "select pk, image_data from {} where filename == ? order by pk".format(args.table)     
+                query_files: str = "select rowid, data from {} where filename == ? order by filename asc".format(args.table)
+                query_files2: str = "select rowid, image_data from {} where filename == ? order by filename asc".format(args.table)     
         else:
-            query: str = "select pk, data from {} order by pk".format(args.table)
-            query2: str = "select pk, image_data from {} order by pk".format(args.table)
+            query: str = "select rowid, data from {} order by filename asc".format(args.table)
+            query2: str = "select rowid, image_data from {} order by filename asc".format(args.table)
         if args.debug:
             print(query_files)
             print(query_files2)
@@ -203,7 +204,7 @@ class SQLiteArchive:
         while row:
             try:
                 data: bytes = bytes(row[1])
-                name: Any = self.dbcon.execute("select filename from {} where pk == {}".format(args.table, str(row[0]))).fetchone()[0]
+                name: Any = self.dbcon.execute("select filename from {} where rowid == {}".format(args.table, str(row[0]))).fetchone()[0]
                 name = name.decode(sys.stdout.encoding) if sys.stdout.encoding else name.decode("utf-8")
 
                 outpath: pathlib.Path = outputdir.joinpath(name)
