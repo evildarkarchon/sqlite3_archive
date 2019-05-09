@@ -91,7 +91,7 @@ class SQLiteArchive:
     
     def add(self):
         self.dbcon.execute("""create table if not exists {} \
-        (pk integer not null primary key autoincrement unique, filename text not null unique, data blob not null unique, hash text);""".format(args.table))
+        (filename text not null unique, data blob not null, hash not null text unique);""".format(args.table))
         # self.dbcon.execute("""create unique index if not exists {0}_index on {0} ("filename" asc, "hash" asc);""".format(args.table))
         self.dbcon.commit()
         dups: dict = {}
