@@ -39,10 +39,11 @@ if not args.table and not args.compact:
             args.table = f.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "")
         else:
             raise RuntimeError("--table must be specified if compact mode is not active.")
-    elif args.files:
+    elif args.files and args.extract:
+        args.table = args.files[0].replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "")
+        args.files.pop(0)
+    elif not args.files:
         raise RuntimeError("--table must be specified if compact mode is not active.")
-    elif args.extract:
-        raise RuntimeError("--table must be specified in extract mode.")
 
 def globlist(listglob: list):
     outlist: list = []
