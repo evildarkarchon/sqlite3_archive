@@ -6,3 +6,7 @@
 **/*.spec
 **/*.pyc
 **/*.json
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.png
