@@ -28,7 +28,7 @@ parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite
 args: argparse.Namespace = parser.parse_args()
 
 if not args.table and not args.compact:
-    if args.files:
+    if args.files and not args.extract:
         argpath = pathlib.Path(args.files[0])
         f = None
         if argpath.is_file():
@@ -39,7 +39,7 @@ if not args.table and not args.compact:
             args.table = f.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "")
         else:
             raise RuntimeError("--table must be specified if compact mode is not active.")
-    elif args.extract and not args.files:
+    elif args.extract or not args.files:
         raise RuntimeError("--table must be specified if compact mode is not active.")    
 
 def globlist(listglob: list):
@@ -174,7 +174,7 @@ class SQLiteArchive:
             print(len(self.files))
             print(repr(tuple(self.files)))
         if args.files and len(args.files) > 0:
-            if len(args.files) > 1:
+            if len(self.files) > 1:
                 questionmarks: Any = '?' * len(args.files)
                 query_files: str = "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks))
                 query_files2: str = "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks))
@@ -190,12 +190,12 @@ class SQLiteArchive:
         cursor: sqlite3.Cursor = None
         
         try:
-            if args.files and len(args.files) > 0:
+            if args.files and len(self.files) > 0:
                 cursor = self.dbcon.execute(query_files, tuple(self.files))
             else:
                 cursor = self.dbcon.execute(query)
         except sqlite3.OperationalError:
-            if args.files and len(args.files) > 0:
+            if args.files and len(self.files) > 0:
                 cursor = self.dbcon.execute(query_files2, tuple(self.files))
             else:
                 cursor = self.dbcon.execute(query2)
