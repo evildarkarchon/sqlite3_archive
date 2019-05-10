@@ -45,6 +45,9 @@ if not args.table and not args.compact:
     elif not args.files:
         raise RuntimeError("--table must be specified if compact mode is not active.")
 
+if args.extract and not args.out:
+    args.out = args.table.replace('_', ' ')
+
 def globlist(listglob: list):
     outlist: list = []
     for a in listglob:
