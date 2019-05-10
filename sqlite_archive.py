@@ -107,7 +107,8 @@ class SQLiteArchive:
             dbname: str = str(self.db.relative_to(pathlib.Path(args.dups).parent))
         except ValueError:
             dbname: str = str(self.db)
-        dups[dbname] = {}
+        if dbname not in list(dups.keys()):
+            dups[dbname] = {}
         for i in self.files:
             filehash = hashlib.sha256()
             fullpath: pathlib.Path = i.resolve()
@@ -159,11 +160,12 @@ class SQLiteArchive:
                 print("done")
             
         if len(dups) > 0:
-            dictexists = False
-            for i in list(dups.keys()):
+            keylist = list(dups.keys())
+            dupsexist = False
+            for i in keylist:
                 if len(dups[i]) >= 1:
-                    dictexists = True
-            if not args.hidedups and dictexists:
+                    dupsexist = True
+            if not args.hidedups and dupsexist:
                 print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
             if not args.nodups and len(dups[dbname]) >= 1:
                 with open(args.dups, 'w') as dupsjson:
