@@ -22,6 +22,7 @@ parser.add_argument("--dups-file", type=str, dest="dups", help="Location of the 
 parser.add_argument("--no-dups", action="store_true", dest="nodups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
 parser.add_argument("--full-dup-path", dest="fulldups", action="store_true", help="Use the full path of the duplicate file as the key for the duplicates list.")
+parser.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
 parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while, use sparingly)")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
@@ -104,7 +105,7 @@ class SQLiteArchive:
                 dups = json.load(dupsjson)
         
         try:
-            dbname: str = str(self.db.relative_to(pathlib.Path(args.dups).parent))
+            dbname: str = str(self.db.relative_to(pathlib.Path(args.dups).resolve().parent))
         except ValueError:
             dbname: str = str(self.db)
         if dbname not in list(dups.keys()):
@@ -166,7 +167,10 @@ class SQLiteArchive:
                 if len(dups[i]) >= 1:
                     dupsexist = True
             if not args.hidedups and dupsexist:
-                print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
+                if args.dupscurrent:
+                    print("Duplicate Files:\n {}".format(json.dumps(dups[dbname], indent=4)))
+                else:
+                    print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
             if not args.nodups and len(dups[dbname]) >= 1:
                 with open(args.dups, 'w') as dupsjson:
                     json.dump(dups, dupsjson, indent=4)
