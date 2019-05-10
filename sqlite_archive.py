@@ -102,7 +102,9 @@ class SQLiteArchive:
         if pathlib.Path(args.dups).is_file() and not args.nodups:
             with open(args.dups) as dupsjson:
                 dups = json.load(dupsjson)
-
+        
+        dbname: str = str(self.db)
+        dups[dbname] = {}
         for i in self.files:
             filehash = hashlib.sha256()
             fullpath: pathlib.Path = i.resolve()
@@ -132,15 +134,15 @@ class SQLiteArchive:
                 
                 if args.fulldups and type(query) is list and len(query) >= 1 or str(pathlib.Path.cwd()) not in str(fullpath) and type(query) is list and len(query) >= 1:
                     if query[0] is not None:
-                        dups[str(fullpath)] = query[0]
+                        dups[dbname][str(fullpath)] = query[0]
                 elif not args.fulldups and type(query) is list and len(query) >= 1:
                     if query[0] is not None:
-                        dups[relparent] = query[0]
+                        dups[dbname][relparent] = query[0]
 
-                for z in list(dups.keys()):
+                for z in list(dups[dbname].keys()):
                     if query[0][0] in z:
                         try:
-                            dups.pop(z)
+                            dups[dbname].pop(z)
                         except KeyError:
                             pass
                 
