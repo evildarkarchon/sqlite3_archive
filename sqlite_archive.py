@@ -9,7 +9,7 @@ import atexit
 import hashlib
 import json
 
-from typing import Any
+from typing import Any, List, Tuple, Dict
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
@@ -28,26 +28,46 @@ parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite
 
 args: argparse.Namespace = parser.parse_args()
 
+def cleantablename(instring: str):
+    return instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
+
+def infertableadd():
+    base = pathlib.Path(args.files[0])
+    if not base.exists():
+        return None
+    f: str = None
+    if base.is_file():
+       f = cleantablename(base.stem.name)
+    elif base.is_dir():
+        f = cleantablename(base.name)
+        
+    if f:
+        return f
+    else:
+        return None
+def infertableextract():
+    if args[0]:
+            f = cleantablename(args.files[0])
+            args.files.pop(0)
+            return f
+    else:
+        return None
+def calculatehash(file: bytes):
+    filehash = hashlib.sha512()
+    filehash.update(file)
+    return filehash.hexdigest()
+
 if not args.table and not args.compact:
     if args.files and not args.extract:
-        argpath = pathlib.Path(args.files[0])
-        f = None
-        if argpath.is_file():
-            f = argpath.stem.name
-        elif argpath.is_dir():
-            f = argpath.name
-        if f:
-            args.table = f.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
-        else:
-            raise RuntimeError("--table must be specified if compact mode is not active.")
+        args.table = infertableadd()
+        if not args.table:
+            raise RuntimeError("File or Directory specified not found and --table was not specified.")
     elif args.files and args.extract:
-        args.table = args.files[0].replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "")
-        args.files.pop(0)
+        args.table = infertableextract()
+        if not args.table:
+            raise RuntimeError("File or Directory specified not found and --table was not specified.")
     elif not args.files:
         raise RuntimeError("--table must be specified if compact mode is not active.")
-
-if args.extract and not args.out:
-    args.out = args.table.replace('_', ' ')
 
 def globlist(listglob: list):
     outlist: list = []
@@ -95,10 +115,36 @@ class SQLiteArchive:
                 self.files.append(i)
         if len(self.files) == 0 and not args.extract:
             raise RuntimeError("No files were found.")
+
+    def execquerynocommit(self, query: str, values: Union[tuple, list]):
+        if values and type(values) not in (list, tuple):
+            raise TypeError("Values argument must be a list or tuple.")
+        output: Any = None
+        if "select" in query or "SELECT" in query or "Select" in query:
+            if values:
+                output = self.dbcon.execute(query, values)
+            else:
+                output = self.dbcon.execute(query)
+            return output.fetchall()
+        else:
+            if values:
+                self.dbcon.execute(query, values)
+            else:
+                self.dbcon.execute(query)
+            return None
+    def execquerycommit(self, query: str, values: Union[tuple, list] = None):
+        if values and type(values) not in (list, tuple):
+            raise TypeError("Values argument must be a list or tuple.")
+        if values:
+            self.dbcon.execute(query, values)
+            self.dbcon.commit()
+        else:
+            self.dbcon.execute(query)
+            self.dbcon.commit()
     
     def add(self):
-        self.dbcon.execute("""CREATE TABLE IF NOT EXISTS {} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
-        self.dbcon.commit()
+        # self.dbcon.execute("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
+        self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         dups: dict = {}
         if pathlib.Path(args.dups).is_file() and not args.nodups:
             with open(args.dups) as dupsjson:
@@ -107,31 +153,34 @@ class SQLiteArchive:
         try:
             dbname: str = str(self.db.relative_to(pathlib.Path(args.dups).resolve().parent))
         except ValueError:
-            dbname: str = str(self.db)
+            dbname: str = str(self.db.relative_to(self.db.parent))
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
         for i in self.files:
-            filehash = hashlib.sha256()
+            filehash = hashlib.sha512()
             fullpath: pathlib.Path = i.resolve()
             name: str = str(fullpath.relative_to(fullpath.parent))
             relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
             try:                
                 if i.is_file():
-                    exists = len(self.dbcon.execute("select filename from {} where filename = ?".format(args.table), (name,)).fetchall())
+                    # exists = len(self.dbcon.execute("select filename from {} where filename = ?".format(args.table), (name,)).fetchall())
+                    exists = self.execquerynocommit("select filename from {} where filename = ?".format(args.table), (name,))
                     data: bytes = i.read_bytes()
-                    filehash.update(data)
-                    digest: str = filehash.hexdigest()
+                    digest: str = calculatehash(data)
                     if args.replace and exists > 0:
                         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ')
-                        self.dbcon.execute("insert or replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+                        # self.dbcon.execute("insert or replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+                        self.execquerycommit("insert or replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
                     else:
                         print("* Adding {} to {}...".format(name, args.table), end=' ')
-                        self.dbcon.execute("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+                        # self.dbcon.execute("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+                        self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
             except sqlite3.IntegrityError:
                 if args.debug:
                     raise
 
-                query = self.dbcon.execute("select filename from {} where hash == ?".format(args.table), (digest,)).fetchall()
+                # query = self.dbcon.execute("select filename from {} where hash == ?".format(args.table), (digest,)).fetchall()
+                query = self.execquerynocommit("select filename from {} where hash == ?".format(args.table), (digest,))
                 if query and query[0][0] and len(query[0][0]) >= 1:
                     print("duplicate")
                 else:
@@ -150,10 +199,6 @@ class SQLiteArchive:
                             dups[dbname].pop(z)
                         except KeyError:
                             pass
-                
-                #if args.debug:
-                #    exctype, value = sys.exc_info()[:2]
-                #    print("Exception type = {}, value = {}".format(exctype, value))
                 if not args.debug:
                     continue
             else:
@@ -161,6 +206,8 @@ class SQLiteArchive:
                 print("done")
             
         if len(dups) > 0:
+            if len(dups[dbname]) is 0:
+                dups.pop(dbname)
             keylist = list(dups.keys())
             dupsexist = False
             for i in keylist:
@@ -171,7 +218,7 @@ class SQLiteArchive:
                     print("Duplicate Files:\n {}".format(json.dumps(dups[dbname], indent=4)))
                 else:
                     print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
-            if not args.nodups and len(dups[dbname]) >= 1:
+            if not args.nodups and dupsexist:
                 with open(args.dups, 'w') as dupsjson:
                     json.dump(dups, dupsjson, indent=4)
     
@@ -204,14 +251,14 @@ class SQLiteArchive:
         
         try:
             if args.files and len(self.files) > 0:
-                cursor = self.dbcon.execute(query_files, tuple(self.files))
+                cursor = self.execquerynocommit(query_files, tuple(self.files))
             else:
-                cursor = self.dbcon.execute(query)
+                cursor = self.execquerynocommit(query)
         except sqlite3.OperationalError:
             if args.files and len(self.files) > 0:
-                cursor = self.dbcon.execute(query_files2, tuple(self.files))
+                cursor = self.execquerynocommit(query_files2, tuple(self.files))
             else:
-                cursor = self.dbcon.execute(query2)
+                cursor = self.execquerynocommit(query2)
 
         row: Any = cursor.fetchone()
         while row:
