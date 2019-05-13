@@ -187,7 +187,9 @@ class SQLiteArchive:
             relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
             try:                
                 if i.is_file():
-                    exists: int = int(self.dbcon.execute("select count(distinct filename) from {} where filename = ?".format(args.table), (name,)).fetchone()[0])
+                    exists: int = None
+                    if args.replace:
+                        exists = int(self.dbcon.execute("select count(distinct filename) from {} where filename = ?".format(args.table), (name,)).fetchone()[0])
                     if args.debug:
                         print(exists)
                     data: bytes = i.read_bytes()
