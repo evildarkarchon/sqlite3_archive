@@ -291,7 +291,7 @@ class SQLiteArchive:
                 print("Extracting {}...".format(str(outpath)), end =' ')
                 outpath.write_bytes(data)
                 print("done")
-            except sqlite3.OperationalError:
+            except sqlite3.DatabaseError:
                 print("failed")
                                 
                 if args.debug:
@@ -305,7 +305,7 @@ class SQLiteArchive:
         print("Compacting the database, this might take a while...", end = ' ')
         try:
             self.dbcon.execute("VACUUM;")
-        except sqlite3.OperationalError:
+        except sqlite3.DatabaseError:
             print("failed")
             raise
         else:
