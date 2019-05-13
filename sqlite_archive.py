@@ -134,7 +134,7 @@ class SQLiteArchive:
         if len(self.files) == 0 and not args.extract:
             raise RuntimeError("No files were found.")
 
-    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False):
+    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         output: Any = None
@@ -143,8 +143,11 @@ class SQLiteArchive:
                 output = self.dbcon.execute(query, values)
             else:
                 output = self.dbcon.execute(query)
+            
             if one:
                 return output.fetchone()[0]
+            elif raw:
+                return output
             else:
                 return output.fetchall()
         else:
@@ -262,14 +265,14 @@ class SQLiteArchive:
         
         try:
             if args.files and len(self.files) > 0:
-                cursor = self.execquerynocommit(query_files, tuple(self.files))
+                cursor = self.execquerynocommit(query_files, tuple(self.files), raw = True)
             else:
-                cursor = self.execquerynocommit(query)
+                cursor = self.execquerynocommit(query, raw = True)
         except sqlite3.OperationalError:
             if args.files and len(self.files) > 0:
-                cursor = self.execquerynocommit(query_files2, tuple(self.files))
+                cursor = self.execquerynocommit(query_files2, tuple(self.files), raw = True)
             else:
-                cursor = self.execquerynocommit(query2)
+                cursor = self.execquerynocommit(query2, raw = True)
 
         row: Any = cursor.fetchone()
         while row:
