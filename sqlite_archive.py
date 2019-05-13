@@ -130,7 +130,7 @@ class SQLiteArchive:
         if not args.compact:
             atexit.register(self.dbcon.execute, "PRAGMA optimize;")
         
-        if not args.compact or len(args.files) >= 0:
+        if not args.compact or len(args.files) > 0:
             listglob: list = globlist(args.files)
             for i in listglob:
                 if pathlib.Path(i).is_file():
