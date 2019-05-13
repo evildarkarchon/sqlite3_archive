@@ -187,12 +187,13 @@ class SQLiteArchive:
             relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
             try:                
                 if i.is_file():
-                    exists = self.execquerynocommit("select filename from {} where filename = ?".format(args.table), (name,))
+                    exists: int = int(self.dbcon.execute("select count(distinct filename) from {} where filename = ?".format(args.table), (name,)).fetchone()[0])
+                    print(exists)
                     data: bytes = i.read_bytes()
                     digest: str = calculatehash(data)
-                    if args.replace and exists > 0:
+                    if args.replace and exists and exists > 0:
                         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ')
-                        self.execquerycommit("insert or replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+                        self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
                     else:
                         print("* Adding {} to {}...".format(name, args.table), end=' ')
                         self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
