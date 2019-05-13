@@ -134,7 +134,7 @@ class SQLiteArchive:
         if len(self.files) == 0 and not args.extract:
             raise RuntimeError("No files were found.")
 
-    def execquerynocommit(self, query: str, values: Union[tuple, list]):
+    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         output: Any = None
@@ -143,7 +143,10 @@ class SQLiteArchive:
                 output = self.dbcon.execute(query, values)
             else:
                 output = self.dbcon.execute(query)
-            return output.fetchall()
+            if one:
+                return output.fetchone()[0]
+            else:
+                return output.fetchall()
         else:
             if values:
                 self.dbcon.execute(query, values)
