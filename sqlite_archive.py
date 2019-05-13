@@ -130,11 +130,12 @@ class SQLiteArchive:
         if not args.compact:
             atexit.register(self.dbcon.execute, "PRAGMA optimize;")
         
-        listglob: list = globlist(args.files)
-        for i in listglob:
-            if pathlib.Path(i).is_file():
-                self.files.append(i)
-        if len(self.files) == 0 and not args.extract:
+        if not args.compact or len(args.files) >= 0:
+            listglob: list = globlist(args.files)
+            for i in listglob:
+                if pathlib.Path(i).is_file():
+                    self.files.append(i)
+        if len(self.files) == 0 and not args.extract and not args.compact:
             raise RuntimeError("No files were found.")
 
     def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False):
