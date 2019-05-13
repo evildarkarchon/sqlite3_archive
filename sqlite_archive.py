@@ -192,7 +192,7 @@ class SQLiteArchive:
                 if i.is_file():
                     exists: int = None
                     if args.replace:
-                        exists = int(self.dbcon.execute("select count(distinct filename) from {} where filename = ?".format(args.table), (name,)).fetchone()[0])
+                        exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values = (name,), one = True))
                     if args.debug:
                         print(exists)
                     data: bytes = i.read_bytes()
