@@ -278,7 +278,7 @@ class SQLiteArchive:
         while row:
             try:
                 data: bytes = bytes(row[1])
-                name: Any = self.execquerynocommit("select filename from {} where rowid == ?".format(args.table), values = str(row[0],), one = True)
+                name: Any = self.execquerynocommit("select filename from {} where rowid == ?".format(args.table), values = (str(row[0]),), one = True)
                 name = name.decode(sys.stdout.encoding) if sys.stdout.encoding else name.decode("utf-8")
 
                 outpath: pathlib.Path = outputdir.joinpath(name)
