@@ -205,10 +205,10 @@ class SQLiteArchive:
                     data: bytes = i.read_bytes()
                     digest: str = calculatehash(data)
                     if args.replace and exists and exists > 0:
-                        print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ')
+                        print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
                         self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
                     else:
-                        print("* Adding {} to {}...".format(name, args.table), end=' ')
+                        print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
                         self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
             except sqlite3.IntegrityError:
                 if args.debug:
