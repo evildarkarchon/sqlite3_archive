@@ -100,9 +100,9 @@ def duplist(dups: dict, dbname: str):
             if len(dups[i]) >= 1:
                 dupsexist = True
         if not args.hidedups and dupsexist:
-            if args.dupscurrent:
+            if args.dupscurrent and dbname in keylist:
                 print("Duplicate Files:\n {}".format(json.dumps(dups[dbname], indent=4)))
-            else:
+            elif not args.dupscurrent:
                 print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
         if not args.nodups and dupsexist:
             with open(args.dups, 'w') as dupsjson:
