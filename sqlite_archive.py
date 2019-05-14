@@ -289,7 +289,7 @@ class SQLiteArchive:
                 if not pathlib.Path(outpath.parent).exists():
                     pathlib.Path(outpath.parent).mkdir(parents=True)
                 
-                print("Extracting {}...".format(str(outpath)), end =' ')
+                print("Extracting {}...".format(str(outpath)), end =' ', flush = True)
                 outpath.write_bytes(data)
                 print("done")
             except sqlite3.DatabaseError:
