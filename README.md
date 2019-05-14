@@ -1,6 +1,6 @@
 # sqlite3_archive
 
-Python version of my sqlite3_archive project. This script requires at least version 3.7 of python because it takes advantage of features added in that version. I only test this script on Windows since that's the operating system of the machine I write this script on. 
+Python version of my sqlite3_archive project. This script requires at least version 3.7 of python because it takes advantage of features added in that version. I only test this script on Windows since that's the operating system of the machine I write this script on. I try to keep Windows specific stuff out of the script and I use pathlib to deal with all of the path manipulation, so it should work just fine on both Unix/Linux and Windows platforms.
 
 ---
 
