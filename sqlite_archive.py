@@ -303,8 +303,8 @@ class SQLiteArchive:
         
             row = cursor.fetchone()  # Normal end of loop
     def compact(self):
-        print("Compacting the database, this might take a while...", end = ' ')
         try:
+            print("Compacting the database, this might take a while...", end = ' ')
             self.dbcon.execute("VACUUM;")
         except sqlite3.DatabaseError:
             print("failed")
