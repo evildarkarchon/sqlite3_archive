@@ -118,11 +118,13 @@ class SQLiteArchive:
             if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1:
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
                 self.dbcon.execute("VACUUM;")
-        else:
+        elif not self.db.is_file() and not args.extract and not args.compact:
             self.db.touch()
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
             self.dbcon.execute("PRAGMA auto_vacuum = 1;")
             self.dbcon.execute("VACUUM;")
+        else:
+            raise RuntimeError("Extract mode and Compact mode require an existing database.")
         
         if args.extract:
             self.dbcon.text_factory = bytes
@@ -193,9 +195,14 @@ class SQLiteArchive:
             dups[dbname] = {}
         for i in self.files:
             fullpath: pathlib.Path = i.resolve()
-            name: str = str(fullpath.relative_to(fullpath.parent))
+            
+            parents = sorted(i.parents)
+            name = str(i.relative_to(i.parent))
+            if len(parents) > 2:
+                name = str(i.relative_to(i.parent.parent))
+            
             relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
-            try:                
+            try:
                 if i.is_file():
                     exists: int = None
                     if args.replace:
