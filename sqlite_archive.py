@@ -10,7 +10,7 @@ import hashlib
 import json
 
 from typing import Any, List, Tuple, Dict
-from time import wait
+from time import sleep
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
@@ -304,9 +304,9 @@ class SQLiteArchive:
         
             row = cursor.fetchone()  # Normal end of loop
     def compact(self):
+        print("Compacting the database, this might take a while...", end = ' ', flush=True)
+        # sleep(5)
         try:
-            print("Compacting the database, this might take a while...", end = ' ')
-            wait(1)
             self.dbcon.execute("VACUUM;")
         except sqlite3.DatabaseError:
             print("failed")
