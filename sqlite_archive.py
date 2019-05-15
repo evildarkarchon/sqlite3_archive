@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import sys
@@ -50,9 +51,12 @@ def infertableadd():
 
 
 def infertableextract():
-    if args[0]:
+    if args.files[0]:
         f = cleantablename(args.files[0])
         args.files.pop(0)
+        return f
+    elif args.out:
+        f = cleantablename(pathlib.Path(args.out).name)
         return f
     else:
         return None
