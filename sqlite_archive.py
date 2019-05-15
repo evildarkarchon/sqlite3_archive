@@ -125,7 +125,7 @@ class SQLiteArchive:
 
         if self.db.is_file():
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
-            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1:
+            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1 and not args.extract and not args.compact:
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
                 self.dbcon.execute("VACUUM;")
         elif not self.db.is_file() and not args.extract and not args.compact:
