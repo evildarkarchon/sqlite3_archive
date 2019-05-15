@@ -209,7 +209,7 @@ class SQLiteArchive:
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
         for i in self.files:
-            fullpath: pathlib.Path = i.resolve()
+            fullpath: pathlib.Path = pathlib.Path(i).resolve()
 
             parents = sorted(i.parents)
             name = str(i.relative_to(i.parent))
