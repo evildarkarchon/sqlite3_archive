@@ -9,6 +9,7 @@ import glob
 import atexit
 import hashlib
 import json
+import imghdr
 
 from typing import Any, List, Tuple, Dict
 
@@ -211,6 +212,9 @@ class SQLiteArchive:
         for i in self.files:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
+            imgtype = imghdr.what(i)
+            if not i.suffix and imgtype:
+                i = i.with_suffix(".{}".format(imgtype))
             fullpath: pathlib.Path = i.resolve()
 
             parents = sorted(i.parents)
