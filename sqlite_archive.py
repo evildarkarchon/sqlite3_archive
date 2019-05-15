@@ -213,7 +213,7 @@ class SQLiteArchive:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
             imgtype = imghdr.what(i)
-            if not i.suffix and imgtype:
+            if not i.suffix and imgtype or i.suffix and imgtype and not i.suffix == ".{}".format(imgtype):
                 i = i.with_suffix(".{}".format(imgtype))
             fullpath: pathlib.Path = i.resolve()
 
@@ -314,6 +314,9 @@ class SQLiteArchive:
                 name = name.decode(sys.stdout.encoding) if sys.stdout.encoding else name.decode("utf-8")
 
                 outpath: pathlib.Path = outputdir.joinpath(name)
+                imgtype = imghdr.what(h=data)
+                if not outpath.suffix and imgtype or outpath.suffix and imgtype and not outpath.suffix == ".{}".format(imgtype):
+                    outpath = outpath.with_suffix(".{}".format(imgtype))
                 if not pathlib.Path(outpath.parent).exists():
                     pathlib.Path(outpath.parent).mkdir(parents=True)
 
