@@ -25,17 +25,21 @@ parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="H
 parser.add_argument("--full-dup-path", dest="fulldups", action="store_true", help="Use the full path of the duplicate file as the key for the duplicates list.")
 parser.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
 parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while, use sparingly)")
+parser.add_argument("--no-lowercase-table", action="store_true", dest="nolower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
 
 
 def cleantablename(instring: str):
-    return instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
+    if args.nolower:
+        return instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
+    else:
+        return instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_').lower()
 
 
 def infertableadd():
-    base = pathlib.Path(args.files[0])
+    base: pathlib.Path = pathlib.Path(args.files[0])
     if not base.exists():
         return None
     f: str = None
@@ -180,7 +184,7 @@ class SQLiteArchive:
     def execquerycommit(self, query: str, values: Union[tuple, list] = None):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
-        if values:
+        if values and type(values) == list or type(values) == tuple:
             try:
                 self.dbcon.execute(query, values)
             except Exception:
@@ -197,6 +201,7 @@ class SQLiteArchive:
 
     def add(self):
         self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
+        self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
         dups: dict = {}
         if pathlib.Path(args.dups).is_file() and not args.nodups:
             with open(args.dups) as dupsjson:
