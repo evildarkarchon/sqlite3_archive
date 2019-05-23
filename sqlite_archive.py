@@ -39,12 +39,12 @@ def cleantablename(instring: str):
 
 
 def infertableadd():
-    base: pathlib.Path = pathlib.Path(args.files[0])
+    base: pathlib.Path = pathlib.Path(args.files[0]).resolve()
     if not base.exists():
         return None
     f: str = None
     if base.is_file():
-        f = cleantablename(base.stem.name)
+        f = cleantablename(base.parent.name)
     elif base.is_dir():
         f = cleantablename(base.name)
 
