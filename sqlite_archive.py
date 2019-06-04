@@ -17,25 +17,27 @@ parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLi
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
-parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping.")
+parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
+parser.add_argument("--no-replace-vacuum", action="store_false", dest="replace_vacuum", help="Do not run the VACUUM command after replacing data.")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
-parser.add_argument("--dups-file", type=str, dest="dups", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
-parser.add_argument("--no-dups", action="store_true", dest="nodups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
+parser.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
+parser.add_argument("--no-dups", action="store_false", dest="dups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
 parser.add_argument("--full-dup-path", dest="fulldups", action="store_true", help="Use the full path of the duplicate file as the key for the duplicates list.")
 parser.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
-parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while, use sparingly)")
-parser.add_argument("--no-lowercase-table", action="store_true", dest="nolower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
+parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
+parser.add_argument("--no-lowercase-table", action="store_false", dest="lower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
 
 
 def cleantablename(instring: str):
-    if args.nolower:
-        return instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
+    out = instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
+    if args.lower:
+        return out.lower()
     else:
-        return instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_').lower()
+        return out
 
 
 def infertableadd():
@@ -121,8 +123,8 @@ def duplist(dups: dict, dbname: str):
                 print("Duplicate Files:\n {}".format(json.dumps(dups[dbname], indent=4)))
             elif not args.dupscurrent:
                 print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
-        if not args.nodups and dupsexist:
-            with open(args.dups, 'w') as dupsjson:
+        if args.dups_file and dupsexist:
+            with open(args.dups_file, 'w') as dupsjson:
                 json.dump(dups, dupsjson, indent=4)
 
 
@@ -199,16 +201,23 @@ class SQLiteArchive:
             else:
                 self.dbcon.commit()
 
+    def insert(self, name, data, digest):
+        print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
+        self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+    def replace(self, name, data, digest):
+        print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
+        self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+
     def add(self):
         self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
         dups: dict = {}
-        if pathlib.Path(args.dups).is_file() and not args.nodups:
-            with open(args.dups) as dupsjson:
+        if pathlib.Path(args.dups_file).is_file() and args.dups:
+            with open(args.dups_file) as dupsjson:
                 dups = json.load(dupsjson)
-
+        replaced: int = 0
         try:
-            dbname: str = str(self.db.relative_to(pathlib.Path(args.dups).resolve().parent))
+            dbname: str = str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
         except ValueError:
             dbname: str = str(self.db.relative_to(self.db.parent))
         if dbname not in list(dups.keys()):
@@ -234,11 +243,10 @@ class SQLiteArchive:
                     data: bytes = i.read_bytes()
                     digest: str = calculatehash(data)
                     if args.replace and exists and exists > 0:
-                        print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
-                        self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+                        self.replace(name, data, digest)
+                        replaced += 1
                     else:
-                        print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
-                        self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+                        self.insert(name, data, digest)
             except sqlite3.IntegrityError:
                 if args.debug:
                     raise
@@ -266,7 +274,8 @@ class SQLiteArchive:
                     continue
             else:
                 print("done")
-
+        if args.replace and args.replace_vacuum and replaced > 0:
+            self.compact()
         duplist(dups, dbname)
 
     def extract(self):
@@ -346,7 +355,10 @@ class SQLiteArchive:
 
 sqlitearchive: SQLiteArchive = SQLiteArchive()
 
-if args.compact:
+if args.compact and not args.files:
+    sqlitearchive.compact()
+elif args.compact and args.files:
+    sqlitearchive.add()
     sqlitearchive.compact()
 elif args.extract:
     sqlitearchive.extract()
