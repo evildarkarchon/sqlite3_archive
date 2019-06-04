@@ -208,6 +208,12 @@ class SQLiteArchive:
         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
         self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
 
+    def calcdbname(self):
+        try:
+            return str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
+        except ValueError:
+            return str(self.db.relative_to(self.db.parent))
+
     def add(self):
         self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
@@ -216,12 +222,10 @@ class SQLiteArchive:
             with open(args.dups_file) as dupsjson:
                 dups = json.load(dupsjson)
         replaced: int = 0
-        try:
-            dbname: str = str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
-        except ValueError:
-            dbname: str = str(self.db.relative_to(self.db.parent))
+        dbname: str = calcdbname()
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
+        
         for i in self.files:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
@@ -278,6 +282,22 @@ class SQLiteArchive:
             self.compact()
         duplist(dups, dbname)
 
+    def calcextractquery(self):
+        out: list = []
+        if args.files and len(args.files) > 0:
+            if len(self.files) > 1:
+                questionmarks: Any = '?' * len(args.files)
+                out[0] = "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks))
+                out[1] = "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks))
+            elif args.files and len(args.files) == 1:
+                out[0] = "select rowid, data from {} where filename == ? order by filename asc".format(args.table)
+                out[1] = "select rowid, image_data from {} where filename == ? order by filename asc".format(args.table)
+        else:
+            out[0] = "select rowid, data from {} order by filename asc".format(args.table)
+            out[1] = "select rowid, image_data from {} order by filename asc".format(args.table)
+        
+        return out
+
     def extract(self):
         outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
         if outputdir.is_file():
@@ -289,32 +309,22 @@ class SQLiteArchive:
         if args.debug:
             print(len(self.files))
             print(repr(tuple(self.files)))
-        if args.files and len(args.files) > 0:
-            if len(self.files) > 1:
-                questionmarks: Any = '?' * len(args.files)
-                query_files: str = "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks))
-                query_files2: str = "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks))
-            elif args.files and len(args.files) == 1:
-                query_files: str = "select rowid, data from {} where filename == ? order by filename asc".format(args.table)
-                query_files2: str = "select rowid, image_data from {} where filename == ? order by filename asc".format(args.table)
-        else:
-            query: str = "select rowid, data from {} order by filename asc".format(args.table)
-            query2: str = "select rowid, image_data from {} order by filename asc".format(args.table)
+        query: list = calcextractquery()
         if args.debug:
-            print(query_files)
-            print(query_files2)
+            print(query[0])
+            print(query[1])
         cursor: sqlite3.Cursor = None
 
         try:
             if args.files and len(self.files) > 0:
-                cursor = self.execquerynocommit(query_files, tuple(self.files), raw=True)
+                cursor = self.execquerynocommit(query[0], tuple(self.files), raw=True)
             else:
-                cursor = self.execquerynocommit(query, raw=True)
+                cursor = self.execquerynocommit(query[0], raw=True)
         except sqlite3.OperationalError:
             if args.files and len(self.files) > 0:
-                cursor = self.execquerynocommit(query_files2, tuple(self.files), raw=True)
+                cursor = self.execquerynocommit(query[1], tuple(self.files), raw=True)
             else:
-                cursor = self.execquerynocommit(query2, raw=True)
+                cursor = self.execquerynocommit(query[1], raw=True)
 
         row: Any = cursor.fetchone()
         while row:
