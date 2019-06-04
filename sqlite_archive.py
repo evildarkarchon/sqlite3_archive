@@ -222,7 +222,7 @@ class SQLiteArchive:
             with open(args.dups_file) as dupsjson:
                 dups = json.load(dupsjson)
         replaced: int = 0
-        dbname: str = calcdbname()
+        dbname: str = self.calcdbname()
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
         
@@ -309,7 +309,7 @@ class SQLiteArchive:
         if args.debug:
             print(len(self.files))
             print(repr(tuple(self.files)))
-        query: list = calcextractquery()
+        query: list = self.calcextractquery()
         if args.debug:
             print(query[0])
             print(query[1])
