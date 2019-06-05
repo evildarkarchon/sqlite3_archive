@@ -287,14 +287,14 @@ class SQLiteArchive:
         if args.files and len(args.files) > 0:
             if len(self.files) > 1:
                 questionmarks: Any = '?' * len(args.files)
-                out[0] = "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks))
-                out[1] = "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks))
+                out.insert(0, "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks)))
+                out.insert(1, "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks)))
             elif args.files and len(args.files) == 1:
-                out[0] = "select rowid, data from {} where filename == ? order by filename asc".format(args.table)
-                out[1] = "select rowid, image_data from {} where filename == ? order by filename asc".format(args.table)
+                out.insert(0, "select rowid, data from {} where filename == ? order by filename asc".format(args.table))
+                out.insert(1, "select rowid, image_data from {} where filename == ? order by filename asc".format(args.table))
         else:
-            out[0] = "select rowid, data from {} order by filename asc".format(args.table)
-            out[1] = "select rowid, image_data from {} order by filename asc".format(args.table)
+            out.insert(0, "select rowid, data from {} order by filename asc".format(args.table))
+            out.insert(1, "select rowid, image_data from {} order by filename asc".format(args.table))
         
         return out
 
