@@ -369,7 +369,7 @@ if args.compact and not args.files:
     sqlitearchive.compact()
 elif args.compact and args.files:
     sqlitearchive.add()
-    sqlitearchive.compact()
+    atexit.register(sqlitearchive.compact)
 elif args.extract:
     sqlitearchive.extract()
 else:
