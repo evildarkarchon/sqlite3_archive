@@ -200,14 +200,14 @@ class SQLiteArchive:
                 raise
             else:
                 self.dbcon.commit()
-
+    """
     def insert(self, name, data, digest):
         print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
         self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
     def replace(self, name, data, digest):
         print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
         self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
-    """
+    
     def calcdbname(self):
         try:
             return str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
@@ -216,6 +216,13 @@ class SQLiteArchive:
     """
 
     def add(self):
+        def insert():
+            print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
+            self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+        def replace():
+            print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
+            self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+        
         self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
         dups: dict = {}
@@ -255,10 +262,10 @@ class SQLiteArchive:
                     data: bytes = i.read_bytes()
                     digest: str = calculatehash(data)
                     if args.replace and exists and exists > 0:
-                        self.replace(name, data, digest)
+                        replace()
                         replaced += 1
                     else:
-                        self.insert(name, data, digest)
+                        insert()
             except sqlite3.IntegrityError:
                 if args.debug:
                     raise
