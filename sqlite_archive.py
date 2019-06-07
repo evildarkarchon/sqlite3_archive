@@ -200,20 +200,6 @@ class SQLiteArchive:
                 raise
             else:
                 self.dbcon.commit()
-    """
-    def insert(self, name, data, digest):
-        print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
-        self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
-    def replace(self, name, data, digest):
-        print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
-        self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
-    
-    def calcdbname(self):
-        try:
-            return str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
-        except ValueError:
-            return str(self.db.relative_to(self.db.parent))
-    """
 
     def add(self):
         def insert():
@@ -296,24 +282,6 @@ class SQLiteArchive:
         if args.replace and args.replace_vacuum and replaced > 0:
             self.compact()
         duplist(dups, dbname)
-
-    """
-    def calcextractquery(self):
-        out: list = []
-        if args.files and len(args.files) > 0:
-            if len(self.files) > 1:
-                questionmarks: Any = '?' * len(args.files)
-                out.insert(0, "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks)))
-                out.insert(1, "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks)))
-            elif args.files and len(args.files) == 1:
-                out.insert(0, "select rowid, data from {} where filename == ? order by filename asc".format(args.table))
-                out.insert(1, "select rowid, image_data from {} where filename == ? order by filename asc".format(args.table))
-        else:
-            out.insert(0, "select rowid, data from {} order by filename asc".format(args.table))
-            out.insert(1, "select rowid, image_data from {} order by filename asc".format(args.table))
-        
-        return out
-    """
 
     def extract(self):
         def calcextractquery():
