@@ -202,8 +202,14 @@ class SQLiteArchive:
                 self.dbcon.commit()
     
     def rename(self, name1: str, name2: str):
-            print("* Renaming {0} to {1}".format(name1, name2), flush=True)
-            self.execquerycommit("update {} set filename = ? where filename = ?".format(args.table), (name1, name2))
+            print("* Renaming {0} to {1}...".format(name1, name2), end=' ', flush=True)
+            try:
+                self.execquerycommit("update {} set filename = ? where filename = ?".format(args.table), (name1, name2))
+            except sqlite3.DatabaseError:
+                print("failed")
+                raise
+            else:
+                print("done")
 
     def add(self):
         def insert():
