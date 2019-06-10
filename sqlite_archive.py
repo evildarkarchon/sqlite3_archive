@@ -208,6 +208,9 @@ class SQLiteArchive:
         def replace():
             print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
             self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+        def rename(name1: str, name2: str):
+            print("* Renaming {0} to {1}".format(name1, name2), flush=True)
+            self.execquerycommit("update {} set filename = ? where filename = ?".format(args.table), (name1, name2))
         
         self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
