@@ -160,11 +160,12 @@ class SQLiteArchive:
         if len(self.files) == 0 and not args.extract and not args.compact and not args.update:
             raise RuntimeError("No files were found.")
 
-    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False):
+    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False, returndata = False):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         output: Any = None
-        if "select" in query or "SELECT" in query or "Select" in query:
+        returnlist = ("select", "SELECT", "Select")
+        if (any(i in query for i in returnlist) and returndata is False) or returndata is True:
             if values:
                 output = self.dbcon.execute(query, values)
             else:
@@ -214,6 +215,10 @@ class SQLiteArchive:
     def schema(self):
         self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
+        if any("image_data" in i for i in self.execquerynocommit("PRAGMA table_info({})".format(args.table), returndata=True)):
+            print("* Renaming image_data column to data...", end=' ', flush=True)
+            self.execquerycommit("ALTER TABLE RENAME COLUMN 'image_data' to 'data'")
+            print("done")
     
     def add(self):
         def insert():
