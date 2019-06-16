@@ -215,9 +215,10 @@ class SQLiteArchive:
     def schema(self):
         self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
         self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
+        
         if any("image_data" in i for i in self.execquerynocommit("PRAGMA table_info({})".format(args.table), returndata=True)):
             print("* Renaming image_data column to data...", end=' ', flush=True)
-            self.execquerycommit("ALTER TABLE RENAME COLUMN 'image_data' to 'data'")
+            self.execquerycommit("ALTER TABLE {} RENAME COLUMN 'image_data' to 'data'".format(args.table))
             print("done")
     
     def add(self):
