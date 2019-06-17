@@ -213,13 +213,19 @@ class SQLiteArchive:
                 print("done")
 
     def schema(self):
-        self.execquerycommit("""CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table))
-        self.execquerycommit('CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table))
+        createtable = """CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );""".format(args.table)
+        self.execquerycommit(createtable)
+        createindex = 'CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table)
+        self.execquerycommit(createindex)
         
-        if any("image_data" in i for i in self.execquerynocommit("PRAGMA table_info({})".format(args.table), returndata=True)):
+        """if any("image_data" in i for i in self.execquerynocommit("PRAGMA table_info({})".format(args.table), returndata=True)):
             print("* Renaming image_data column to data...", end=' ', flush=True)
-            self.execquerycommit("ALTER TABLE {} RENAME COLUMN 'image_data' to 'data'".format(args.table))
-            print("done")
+            self.execquerynocommit("ALTER TABLE {0} RENAME to {0}_old;".format(args.table))
+            self.execquerynocommit("DROP INDEX IF EXISTS {}_index".format(args.table))
+            self.execquerycommit(createtable)
+            self.execquerycommit(createindex)
+            self.execquerycommit("insert into {0} (filename, data) select (filename, image_data)")
+            print("done")"""
     
     def add(self):
         def insert():
