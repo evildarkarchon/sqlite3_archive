@@ -262,10 +262,10 @@ class SQLiteArchive:
     def add(self):
         def insert():
             print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
-            self.execquerycommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+            self.execquerynocommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
         def replace():
             print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
-            self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+            self.execquerynocommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
             # self.execquerycommit("update {} set filename = :name, data = :data, hash = :hash where filename = :name".format(args.table), {"name": name, "data": data, "hash": digest })
         
         self.schema()
@@ -290,7 +290,7 @@ class SQLiteArchive:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
 
-            parents = list(i.parents).sort()
+            parents = sorted(i.parents)
             name = str(i.relative_to(i.parent))
             if len(parents) > 2:
                 name = str(i.relative_to(i.parent.parent))
@@ -337,6 +337,7 @@ class SQLiteArchive:
                     continue
             else:
                 print("done")
+        self.dbcon.commit()
         if args.replace and args.replace_vacuum and replaced > 0:
             self.compact()
         if args.dups:
