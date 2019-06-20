@@ -28,7 +28,8 @@ parser.add_argument("--full-dup-path", dest="fulldups", action="store_true", hel
 parser.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
 parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
 parser.add_argument("--no-lowercase-table", action="store_false", dest="lower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
-parser.add_argument("--update-schema", "-u", dest="update", action="store_true", help="Run the schema creation queries and exit")
+parser.add_argument("--update-schema", "--update", "-u", dest="update", action="store_true", help="Run the schema creation queries and exit")
+parser.add_argument("--no-atomic", action="store_false", dest="atomic", help="Run commit on every insert instead of at the end of the loop.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
@@ -262,10 +263,20 @@ class SQLiteArchive:
     def add(self):
         def insert():
             print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
-            self.execquerynocommit("insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+            query="insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table)
+            values=(name, data, digest)
+            if args.atomic:
+                self.execquerynocommit(query, values)
+            else:
+                self.execquerycommit(query, values)
         def replace():
             print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
-            self.execquerynocommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+            query="replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table)
+            values=(name, data, digest)
+            if args.atomic:
+                self.execquerynocommit(query, values)
+            else:
+                self.execquerycommit(query, values)
             # self.execquerycommit("update {} set filename = :name, data = :data, hash = :hash where filename = :name".format(args.table), {"name": name, "data": data, "hash": digest })
         
         self.schema()
@@ -317,8 +328,6 @@ class SQLiteArchive:
                 query = self.execquerynocommit("select filename from {} where hash == ?".format(args.table), (digest,))
                 if query and query[0][0] and len(query[0][0]) >= 1:
                     print("duplicate")
-                else:
-                    raise
 
                 if args.fulldups and type(query) is list and len(query) >= 1 or str(pathlib.Path.cwd()) not in str(fullpath) and type(query) is list and len(query) >= 1:
                     if query[0] is not None:
