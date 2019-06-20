@@ -344,6 +344,9 @@ class SQLiteArchive:
                             pass
                 if not args.debug:
                     continue
+            except sqlite3.InterfaceError:
+                print("failed")
+                continue
             else:
                 print("done")
         self.dbcon.commit()
