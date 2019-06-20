@@ -11,6 +11,7 @@ import hashlib
 import json
 
 from typing import Any, List, Tuple, Dict
+from collections import OrderedDict
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
@@ -201,6 +202,16 @@ class SQLiteArchive:
                 raise
             else:
                 self.dbcon.commit()
+    def execmanycommit(self, query: str, values: Union[tuple, list]):
+        if values and type(values) not in (list, tuple):
+            raise TypeError("Values argument must be a list or tuple.")
+
+        try:
+            self.dbcon.executemany(query, values)
+        except Exception:
+            raise
+        else:
+            self.dbcon.commit()
     
     def rename(self, name1: str, name2: str):
             print("* Renaming {0} to {1}...".format(name1, name2), end=' ', flush=True)
@@ -220,12 +231,32 @@ class SQLiteArchive:
         
         """if any("image_data" in i for i in self.execquerynocommit("PRAGMA table_info({})".format(args.table), returndata=True)):
             print("* Renaming image_data column to data...", end=' ', flush=True)
-            self.execquerynocommit("ALTER TABLE {0} RENAME to {0}_old;".format(args.table))
-            self.execquerynocommit("DROP INDEX IF EXISTS {}_index".format(args.table))
+            self.execquerycommit("ALTER TABLE {0} RENAME to {0}_old;".format(args.table))
+            self.execquerycommit("DROP INDEX IF EXISTS {}_index".format(args.table))
             self.execquerycommit(createtable)
             self.execquerycommit(createindex)
-            self.execquerycommit("insert into {0} (filename, data) select (filename, image_data)")
+            self.execquerycommit("insert into {0} (filename, data) select (filename, image_data) from {0}_old".format(args.table))
+            
             print("done")"""
+    
+    def batchadd(self):
+        print("* Adding files to {}".format(args.table), end=' ', flush=True)
+        def genfilesdict():
+            out = OrderedDict()
+            for i in self.files:
+                if not type(i) == pathlib.Path:
+                    i = pathlib.Path(i)
+                parents = sorted(i.parents)
+                name = str(i.relative_to(i.parent))
+                if len(parents) > 2:
+                    name = str(i.relative_to(i.parent.parent))
+                out[name] = dict()
+                out[name]["filename"] = name
+                out[name]["data"] = i.read_bytes()
+                out[name]["hash"] = calculatehash(out[name]["data"])
+            return out
+        
+                
     
     def add(self):
         def insert():
@@ -234,6 +265,9 @@ class SQLiteArchive:
         def replace():
             print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
             self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
+        def insertmany():
+            print("* Inserting files into {}".format(args.table), end=' ', flush=True)
+
         
         self.schema()
         dups: dict = {}
