@@ -16,7 +16,8 @@ from collections import OrderedDict
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
-parser.add_argument("--drop-table", action="store_true", dest="drop", help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done.")
+parser.add_argument("--drop-table", action="store_true", dest="drop", help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done, by default.")
+parser.add_argument("--no-drop-vacuum", action="store_false", dest="drop_vacuum", help="Do not execute VACUUM when dropping a table")
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
@@ -219,9 +220,16 @@ class SQLiteArchive:
             self.dbcon.commit()
     
     def drop(self):
-        print("* Deleting table: {}".format(args.table))
-        self.execquerycommit("DROP TABLE {}".format(args.table))
-        self.compact()
+        print("* Deleting table {}...".format(args.table), end=' ', flush=True)
+        try:
+            self.execquerycommit("DROP TABLE {}".format(args.table))
+        except sqlite3.DatabaseError:
+            print("failed")
+            raise
+        else:
+            print("done")
+            if args.drop_vacuum:
+                self.compact()
     
     def rename(self, name1: str, name2: str):
             print("* Renaming {0} to {1}...".format(name1, name2), end=' ', flush=True)
@@ -238,34 +246,7 @@ class SQLiteArchive:
         self.execquerycommit(createtable)
         createindex = 'CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table)
         self.execquerycommit(createindex)
-        
-        """if any("image_data" in i for i in self.execquerynocommit("PRAGMA table_info({})".format(args.table), returndata=True)):
-            print("* Renaming image_data column to data...", end=' ', flush=True)
-            self.execquerycommit("ALTER TABLE {0} RENAME to {0}_old;".format(args.table))
-            self.execquerycommit("DROP INDEX IF EXISTS {}_index".format(args.table))
-            self.execquerycommit(createtable)
-            self.execquerycommit(createindex)
-            self.execquerycommit("insert into {0} (filename, data) select (filename, image_data) from {0}_old".format(args.table))
-            
-            print("done")"""
-    """    
-    def batchadd(self):
-        print("* Adding files to {}".format(args.table), end=' ', flush=True)
-        def genfilesdict():
-            out = OrderedDict()
-            for i in self.files:
-                if not type(i) == pathlib.Path:
-                    i = pathlib.Path(i)
-                parents = sorted(i.parents)
-                name = str(i.relative_to(i.parent))
-                if len(parents) > 2:
-                    name = str(i.relative_to(i.parent.parent))
-                out[name] = dict()
-                out[name]["filename"] = name
-                out[name]["data"] = i.read_bytes()
-                out[name]["hash"] = calculatehash(out[name]["data"])
-            return out
-    """ 
+
     def add(self):
         def insert():
             print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
