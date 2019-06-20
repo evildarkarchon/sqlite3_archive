@@ -110,6 +110,9 @@ def globlist(listglob: list):
     outlist.sort()
     return outlist
 
+def globlist_lc(listglob: list):
+    outlist: list = []
+
 
 def duplist(dups: dict, dbname: str):
     if len(dups) > 0:
@@ -238,7 +241,7 @@ class SQLiteArchive:
             self.execquerycommit("insert into {0} (filename, data) select (filename, image_data) from {0}_old".format(args.table))
             
             print("done")"""
-    
+    """    
     def batchadd(self):
         print("* Adding files to {}".format(args.table), end=' ', flush=True)
         def genfilesdict():
@@ -255,9 +258,7 @@ class SQLiteArchive:
                 out[name]["data"] = i.read_bytes()
                 out[name]["hash"] = calculatehash(out[name]["data"])
             return out
-        
-                
-    
+    """ 
     def add(self):
         def insert():
             print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
@@ -265,9 +266,7 @@ class SQLiteArchive:
         def replace():
             print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
             self.execquerycommit("replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table), (name, data, digest))
-        def insertmany():
-            print("* Inserting files into {}".format(args.table), end=' ', flush=True)
-
+            # self.execquerycommit("update {} set filename = :name, data = :data, hash = :hash where filename = :name".format(args.table), {"name": name, "data": data, "hash": digest })
         
         self.schema()
         dups: dict = {}
@@ -291,7 +290,7 @@ class SQLiteArchive:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
 
-            parents = sorted(i.parents)
+            parents = list(i.parents).sort()
             name = str(i.relative_to(i.parent))
             if len(parents) > 2:
                 name = str(i.relative_to(i.parent.parent))
@@ -340,7 +339,8 @@ class SQLiteArchive:
                 print("done")
         if args.replace and args.replace_vacuum and replaced > 0:
             self.compact()
-        duplist(dups, dbname)
+        if args.dups:
+            duplist(dups, dbname)
 
     def extract(self):
         def calcextractquery():
