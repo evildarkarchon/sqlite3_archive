@@ -16,6 +16,7 @@ from collections import OrderedDict
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
+parser.add_argument("--drop-table", action="store_true", dest="drop", help="Drop the table specified in the --table argument")
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
@@ -77,7 +78,7 @@ def calculatehash(file: bytes):
     return filehash.hexdigest()
 
 
-if not args.table and not args.compact:
+if not args.table and not args.compact and not args.drop:
     if args.files and not args.extract:
         args.table = infertableadd()
         if not args.table:
@@ -162,7 +163,7 @@ class SQLiteArchive:
             for i in listglob:
                 if pathlib.Path(i).is_file():
                     self.files.append(i)
-        if len(self.files) == 0 and not args.extract and not args.compact and not args.update:
+        if len(self.files) == 0 and not args.extract and not args.compact and not args.update and not args.drop:
             raise RuntimeError("No files were found.")
 
     def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False, returndata = False):
@@ -216,6 +217,11 @@ class SQLiteArchive:
             raise
         else:
             self.dbcon.commit()
+    
+    def drop(self):
+        print("* Deleting table: {}".format(args.table))
+        self.execquerycommit("DROP TABLE {}".format(args.table))
+        self.compact()
     
     def rename(self, name1: str, name2: str):
             print("* Renaming {0} to {1}...".format(name1, name2), end=' ', flush=True)
@@ -440,6 +446,8 @@ sqlitearchive: SQLiteArchive = SQLiteArchive()
 
 if args.update:
     sqlitearchive.schema()
+elif args.drop:
+    sqlitearchive.drop()
 elif args.compact and not args.files:
     sqlitearchive.compact()
 elif args.compact and args.files and not args.update:
