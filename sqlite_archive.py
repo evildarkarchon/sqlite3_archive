@@ -16,7 +16,7 @@ from collections import OrderedDict
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
-parser.add_argument("--drop-table", action="store_true", dest="drop", help="Drop the table specified in the --table argument")
+parser.add_argument("--drop-table", action="store_true", dest="drop", help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done.")
 parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
 parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
