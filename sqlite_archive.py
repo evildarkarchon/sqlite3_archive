@@ -91,29 +91,7 @@ if not args.table and not args.compact and not args.drop:
     elif not args.files:
         raise RuntimeError("--table must be specified if compact mode is not active.")
 
-
 def globlist(listglob: list):
-    outlist: list = []
-    for a in listglob:
-        if type(a) is str and "*" in a:
-            globs: list = glob.glob(a, recursive=True)
-            for x in globs:
-                outlist.append(pathlib.Path(x))
-        elif type(a) is pathlib.Path and a.is_file() or type(a) is str and pathlib.Path(a).is_file():
-            outlist.append(a)
-        elif type(a) is str and "*" not in listglob and pathlib.Path(a).is_file():
-            outlist.append(pathlib.Path(a))
-        elif type(a) is str and "*" not in listglob and pathlib.Path(a).is_dir() or type(a) is pathlib.Path and a.is_dir():
-            for y in pathlib.Path(a).rglob("*"):
-                outlist.append(y)
-        else:
-            globs: list = glob.glob(a, recursive=True)
-            for x in globs:
-                outlist.append(pathlib.Path(x))
-    outlist.sort()
-    return outlist
-
-def globlist_lc(listglob: list):
     outlist: list = []
 
     for i in listglob:
@@ -196,13 +174,9 @@ class SQLiteArchive:
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
         if not args.compact or len(args.files) > 0:
-            listglob: list = globlist_lc(args.files)
+            listglob: list = globlist(args.files)
             if args.debug or args.verbose:
-                print(globlist(args.files), end="\n\n")
-                print(globlist_lc(args.files), end="\n\n")
-            # for i in listglob:
-            #     if pathlib.Path(i).is_file():
-            #         self.files.append(i)
+                print(listglob, end="\n\n")
             self.files = [i for i in listglob if i.is_file()]
             if args.debug or args.verbose:
                 print(self.files)
