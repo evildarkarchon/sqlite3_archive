@@ -379,6 +379,8 @@ class SQLiteArchive:
             else:
                 print("done")
         if args.atomic:
+            if args.verbose or args.debug:
+                print("Running commit function.")
             self.dbcon.commit()
 
         if args.replace and args.replace_vacuum and replaced > 0:
