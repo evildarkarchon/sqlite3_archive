@@ -319,10 +319,14 @@ class SQLiteArchive:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
 
-            parents = sorted(i.parents)
-            name = str(i.relative_to(i.parent))
-            if len(parents) > 2:
-                name = str(i.relative_to(i.parent.parent))
+            name: str = None
+            try:
+                name = str(i.relative_to(pathlib.Path.cwd()))
+            except ValueError:
+                parents = sorted(i.parents)
+                name = str(i.relative_to(i.parent))
+                if len(parents) > 2:
+                    name = str(i.relative_to(i.parent.parent))
 
             relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
             try:
