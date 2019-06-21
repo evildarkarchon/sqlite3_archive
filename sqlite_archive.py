@@ -348,8 +348,8 @@ class SQLiteArchive:
                     exists: int = None
                     if args.replace:
                         exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values=(name,), one=True))
-                    if args.replace and (args.debug or args.verbose):
-                        print(exists)
+                        if args.debug or args.verbose:
+                            print(exists)
                     data: bytes = i.read_bytes()
                     digest: str = calculatehash(data)
                     if args.replace and exists and exists > 0:
