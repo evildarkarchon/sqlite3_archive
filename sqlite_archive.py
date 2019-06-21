@@ -280,6 +280,8 @@ class SQLiteArchive:
     
     def calcname(self, inpath: pathlib.Path):
         def oldbehavior():
+            if args.verbose or args.debug:
+                print("Using old name calculation behavior")
             parents = sorted(inpath.parents)
             if len(parents) > 2:
                 return str(inpath.relative_to(inpath.parent.parent))
