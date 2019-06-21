@@ -115,6 +115,15 @@ def globlist(listglob: list):
 
 def globlist_lc(listglob: list):
     outlist: list = []
+
+    for i in listglob:
+        if pathlib.Path(args.db).name in i:
+            if args.verbose or args.debug:
+                print("Removing database file from file list.")
+            try:
+                listglob.remove(i)
+            except ValueError:
+                continue
     
     def runglobs():
         return list(map(pathlib.Path, glob.glob(a, recursive=True)))
