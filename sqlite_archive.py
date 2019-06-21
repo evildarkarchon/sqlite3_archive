@@ -277,6 +277,18 @@ class SQLiteArchive:
         self.execquerycommit(createtable)
         createindex = 'CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table)
         self.execquerycommit(createindex)
+    
+    def calcname(self, inpath: pathlib.Path):
+        def oldbehavior():
+            parents = sorted(inpath.parents)
+            if len(parents) > 2:
+                return str(inpath.relative_to(inpath.parent.parent))
+            else:
+                return str(inpath.relative_to(inpath.parent))
+        try:
+            return str(inpath.relative_to(pathlib.Path.cwd()))
+        except ValueError:
+            return oldbehavior()
 
     def add(self):
         def insert():
@@ -319,14 +331,7 @@ class SQLiteArchive:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
 
-            name: str = None
-            try:
-                name = str(i.relative_to(pathlib.Path.cwd()))
-            except ValueError:
-                parents = sorted(i.parents)
-                name = str(i.relative_to(i.parent))
-                if len(parents) > 2:
-                    name = str(i.relative_to(i.parent.parent))
+            name: str = self.calcname(i)
 
             relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
             try:
