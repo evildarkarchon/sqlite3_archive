@@ -301,7 +301,6 @@ class SQLiteArchive:
                 self.execquerynocommit(query, values)
             else:
                 self.execquerycommit(query, values)
-            # self.execquerycommit("update {} set filename = :name, data = :data, hash = :hash where filename = :name".format(args.table), {"name": name, "data": data, "hash": digest })
         
         self.schema()
         dups: dict = {}
