@@ -279,16 +279,23 @@ class SQLiteArchive:
         self.execquerycommit(createindex)
     
     def calcname(self, inpath: pathlib.Path):
+        parents = sorted(inpath.parents)
+        if args.verbose or args.debug:
+            print(parents)
         def oldbehavior():
             if args.verbose or args.debug:
                 print("Using old name calculation behavior")
-            parents = sorted(inpath.parents)
             if len(parents) > 2:
                 return str(inpath.relative_to(inpath.parent.parent))
             else:
                 return str(inpath.relative_to(inpath.parent))
         try:
-            return str(inpath.relative_to(pathlib.Path.cwd()))
+            if inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
+                return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
+            elif not inpath.is_absolute():
+                return str(inpath.relative_to(parents[1]))
+            else:
+                return oldbehavior()
         except ValueError:
             return oldbehavior()
 
@@ -341,7 +348,7 @@ class SQLiteArchive:
                     exists: int = None
                     if args.replace:
                         exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values=(name,), one=True))
-                    if args.debug or args.verbose:
+                    if args.replace and (args.debug or args.verbose):
                         print(exists)
                     data: bytes = i.read_bytes()
                     digest: str = calculatehash(data)
