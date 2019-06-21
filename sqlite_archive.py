@@ -123,7 +123,10 @@ def globlist_lc(listglob: list):
             try:
                 listglob.remove(i)
             except ValueError:
-                continue
+                if args.debug:
+                    raise
+                else:
+                    continue
     
     def runglobs():
         return list(map(pathlib.Path, glob.glob(a, recursive=True)))
@@ -364,8 +367,6 @@ class SQLiteArchive:
                     else:
                         insert()
             except sqlite3.IntegrityError:
-                if args.debug:
-                    raise
 
                 query = self.execquerynocommit("select filename from {} where hash == ?".format(args.table), (digest,))
                 if query and query[0][0] and len(query[0][0]) >= 1:
@@ -381,10 +382,17 @@ class SQLiteArchive:
                             dups[dbname].pop(z)
                         except KeyError:
                             pass
-                continue
+                
+                if args.debug:
+                    raise
+                else:
+                    continue
             except sqlite3.InterfaceError:
                 print("failed")
-                continue
+                if args.debug:
+                    raise
+                else:
+                    continue
             else:
                 print("done")
         if args.atomic:
