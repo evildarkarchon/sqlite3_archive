@@ -378,7 +378,9 @@ class SQLiteArchive:
                 continue
             else:
                 print("done")
-        self.dbcon.commit()
+        if args.atomic:
+            self.dbcon.commit()
+
         if args.replace and args.replace_vacuum and replaced > 0:
             self.compact()
         if args.dups:
