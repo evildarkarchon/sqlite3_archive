@@ -32,6 +32,7 @@ parser.add_argument("--compact", action="store_true", help="Run the VACUUM query
 parser.add_argument("--no-lowercase-table", action="store_false", dest="lower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
 parser.add_argument("--update-schema", "--update", "-u", dest="update", action="store_true", help="Run the schema creation queries and exit")
 parser.add_argument("--no-atomic", action="store_false", dest="atomic", help="Run commit on every insert instead of at the end of the loop.")
+parser.add_argument("--verbose", "-v", action="store_true", help="Print some more information without changing the exception raising policy.")
 parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
@@ -115,6 +116,30 @@ def globlist(listglob: list):
 
 def globlist_lc(listglob: list):
     outlist: list = []
+    
+    def runglobs():
+        return list(map(pathlib.Path, glob.glob(a, recursive=True)))
+        
+    for a in listglob:
+        if type(a) is str and "*" in a:
+            outlist.extend(runglobs())
+        elif type(a) is pathlib.Path and a.is_file() or type(a) is str and pathlib.Path(a).is_file():
+            if type(a) is str:
+                outlist.append(pathlib.Path(a))
+            elif type(a) is pathlib.Path:
+                outlist.append(a)
+            else:
+                continue
+        elif type(a) is str and "*" not in a and pathlib.Path(a).is_file():
+            outlist.append(pathlib.Path(a))
+        elif type(a) is str and "*" not in a and pathlib.Path(a).is_dir() or type(a) is pathlib.Path and a.is_dir():
+            outlist.extend([x for x in pathlib.Path(a).rglob("*")])
+        else:
+            outlist.extend(runglobs())
+    
+    outlist.sort()
+    
+    return outlist
 
 
 def duplist(dups: dict, dbname: str):
@@ -160,10 +185,16 @@ class SQLiteArchive:
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
         if not args.compact or len(args.files) > 0:
-            listglob: list = globlist(args.files)
-            for i in listglob:
-                if pathlib.Path(i).is_file():
-                    self.files.append(i)
+            listglob: list = globlist_lc(args.files)
+            if args.debug or args.verbose:
+                print(globlist(args.files), end="\n\n")
+                print(globlist_lc(args.files), end="\n\n")
+            # for i in listglob:
+            #     if pathlib.Path(i).is_file():
+            #         self.files.append(i)
+            self.files = [i for i in listglob if i.is_file()]
+            if args.debug or args.verbose:
+                print(self.files)
         if len(self.files) == 0 and not args.extract and not args.compact and not args.update and not args.drop:
             raise RuntimeError("No files were found.")
 
@@ -299,7 +330,7 @@ class SQLiteArchive:
                     exists: int = None
                     if args.replace:
                         exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values=(name,), one=True))
-                    if args.debug:
+                    if args.debug or args.verbose:
                         print(exists)
                     data: bytes = i.read_bytes()
                     digest: str = calculatehash(data)
@@ -329,8 +360,7 @@ class SQLiteArchive:
                             dups[dbname].pop(z)
                         except KeyError:
                             pass
-                if not args.debug:
-                    continue
+                continue
             except sqlite3.InterfaceError:
                 print("failed")
                 continue
@@ -366,11 +396,11 @@ class SQLiteArchive:
         if not outputdir.exists():
             print("Creating output directory...")
             outputdir.mkdir(parents=True)
-        if args.debug:
+        if args.debug or args.verbose:
             print(len(self.files))
             print(repr(tuple(self.files)))
         query: list = calcextractquery()
-        if args.debug:
+        if args.debug or args.verbose:
             print(query[0])
             print(query[1])
         cursor: sqlite3.Cursor = None
