@@ -26,7 +26,6 @@ parser.add_argument("--debug", dest="debug", action="store_true", help="Supress 
 parser.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
 parser.add_argument("--no-dups", action="store_false", dest="dups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
-parser.add_argument("--full-dup-path", dest="fulldups", action="store_true", help="Use the full path of the duplicate file as the key for the duplicates list.")
 parser.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
 parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
 parser.add_argument("--no-lowercase-table", action="store_false", dest="lower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
@@ -295,7 +294,7 @@ class SQLiteArchive:
             elif not inpath.is_absolute():
                 return str(inpath.relative_to(parents[1]))
             else:
-                return oldbehavior()
+                return str(inpath.relative_to(self.db.parent))
         except ValueError:
             return oldbehavior()
 
@@ -341,8 +340,6 @@ class SQLiteArchive:
             fullpath: pathlib.Path = i.resolve()
 
             name: str = self.calcname(i)
-
-            relparent: str = str(fullpath.relative_to(fullpath.parent.parent))
             try:
                 if i.is_file():
                     exists: int = None
@@ -365,12 +362,9 @@ class SQLiteArchive:
                 if query and query[0][0] and len(query[0][0]) >= 1:
                     print("duplicate")
 
-                if args.fulldups and type(query) is list and len(query) >= 1 or str(pathlib.Path.cwd()) not in str(fullpath) and type(query) is list and len(query) >= 1:
+                if type(query) is list and len(query) >= 1:
                     if query[0] is not None:
                         dups[dbname][str(fullpath)] = query[0]
-                elif not args.fulldups and type(query) is list and len(query) >= 1:
-                    if query[0] is not None:
-                        dups[dbname][relparent] = query[0]
 
                 for z in list(dups[dbname].keys()):
                     if query[0][0] in z:
