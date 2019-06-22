@@ -281,9 +281,8 @@ class SQLiteArchive:
                 return str(inpath.relative_to(parents[1]))
             else:
                 return str(inpath.relative_to(self.db.parent))
-        except ValueError:
+        except (ValueError, IndexError):
             return oldbehavior()
-
     def add(self):
         def insert():
             print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
@@ -332,7 +331,7 @@ class SQLiteArchive:
                         exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values=(name,), one=True))
                         if args.debug or args.verbose:
                             print(exists)
-                    data: bytes = i.read_bytes()
+                    data: bytes = bytes(i.read_bytes())
                     digest: str = calculatehash(data)
                     if args.replace and exists and exists > 0:
                         replace()
@@ -361,7 +360,10 @@ class SQLiteArchive:
                 else:
                     continue
             except sqlite3.InterfaceError:
-                print("failed")
+                if i.stat().st_size > 1000000000:
+                    print("too big, skipping.")
+                else:
+                    print("failed")
                 if args.debug:
                     raise
                 else:
