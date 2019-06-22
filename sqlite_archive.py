@@ -93,18 +93,6 @@ if not args.table and not args.compact and not args.drop:
 
 def globlist(listglob: list):
     outlist: list = []
-
-    for i in listglob:
-        if pathlib.Path(i).resolve() == pathlib.Path(args.db).resolve():
-            if args.verbose or args.debug:
-                print("Removing database file from file list.")
-            try:
-                listglob.remove(i)
-            except ValueError:
-                if args.debug:
-                    raise
-                else:
-                    break
     
     def runglobs():
         return list(map(pathlib.Path, glob.glob(a, recursive=True)))
@@ -127,6 +115,18 @@ def globlist(listglob: list):
             outlist.extend(runglobs())
     
     outlist.sort()
+
+    for i in outlist:
+        if pathlib.Path(i).resolve() == pathlib.Path(args.db).resolve():
+            if args.verbose or args.debug:
+                print("Removing database file from file list.")
+            try:
+                outlist.remove(i)
+            except ValueError:
+                if args.debug:
+                    raise
+                else:
+                    break
     
     return outlist
 
