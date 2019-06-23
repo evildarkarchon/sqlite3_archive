@@ -397,6 +397,9 @@ class SQLiteArchive:
         
             return out
         
+        if len(self.execquerynocommit("pragma table_info({})".format(args.table), returndata=True)) < 1:
+            raise sqlite3.OperationalError("No such table")
+        
         outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
         if outputdir.is_file():
             raise RuntimeError("The output directory specified points to a file.")
