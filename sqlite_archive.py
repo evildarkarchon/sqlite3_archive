@@ -37,7 +37,7 @@ parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite
 args: argparse.Namespace = parser.parse_args()
 
 
-if args.out and not args.extract:
+if args.out and not args.out == str(pathlib.Path.cwd()) and not args.extract:
     args.extract = True
 
 def cleantablename(instring: str):
