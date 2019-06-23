@@ -405,7 +405,8 @@ class SQLiteArchive:
             raise RuntimeError("The output directory specified points to a file.")
 
         if not outputdir.exists():
-            print("Creating output directory...")
+            if args.verbose or args.debug:
+                print("Creating output directory...")
             outputdir.mkdir(parents=True)
         if args.debug or args.verbose:
             print(len(self.files))
