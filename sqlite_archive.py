@@ -374,7 +374,7 @@ class SQLiteArchive:
             else:
                 print("done")
         if args.atomic:
-            print("Finishing up...", end=' ', flush=True)
+            print("* Finishing up...", end=' ', flush=True)
             try:
                 self.dbcon.commit()
             except sqlite3.DatabaseError:
