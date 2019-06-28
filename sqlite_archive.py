@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import sys
 import argparse
-import sqlite3
-import pathlib
-import glob
 import atexit
+import glob
 import hashlib
 import json
+import pathlib
+import sqlite3
+import sys
+from typing import Any, Dict, List, Tuple
 
-from typing import Any, List, Tuple, Dict
-from collections import OrderedDict
+# from collections import OrderedDict
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
