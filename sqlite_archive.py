@@ -14,35 +14,44 @@ from typing import Any, Dict, List, Tuple
 # from collections import OrderedDict
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
+subparsers: argparse.ArgumentParser = parser.add_subparsers(dest="mode")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
-parser.add_argument("--drop-table", "--drop", action="store_true", dest="drop", help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done, by default.")
-parser.add_argument("--no-drop-vacuum", action="store_false", dest="drop_vacuum", help="Do not execute VACUUM when dropping a table")
-parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
-parser.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
-parser.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
-parser.add_argument("--no-replace-vacuum", action="store_false", dest="replace_vacuum", help="Do not run the VACUUM command after replacing data.")
+drop: argparse.ArgumentParser = subparsers.add_parser('drop', aliases=['drop-table', 'drop_table'], help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done, by default.")
+#parser.add_argument("--drop-table", "--drop", action="store_true", dest="drop", help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done, by default.")
+drop.add_argument("--no-drop-vacuum", action="store_false", dest="drop_vacuum", help="Do not execute VACUUM when dropping a table")
+drop.add_argument("table", help="Name of table to use")
+#parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
+extract: argparse.ArgumentParser = subparsers.add_parser('extract', help="Extract files from a table instead of adding them.")
+extract.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
+
+add = subparsers.add_parser("add", help="Add files to the database.")
+add.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
+add.add_argument("--no-replace-vacuum", action="store_false", dest="replace_vacuum", help="Do not run the VACUUM command after replacing data.")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
-parser.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
-parser.add_argument("--no-dups", action="store_false", dest="dups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
-parser.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
-parser.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
-parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
-parser.add_argument("--no-lowercase-table", action="store_false", dest="lower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
-parser.add_argument("--update-schema", "--update", "-u", dest="update", action="store_true", help="Run the schema creation queries and exit")
-parser.add_argument("--no-atomic", action="store_false", dest="atomic", help="Run commit on every insert instead of at the end of the loop.")
+add.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
+add.add_argument("--no-dups", action="store_false", dest="dups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
+add.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
+add.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
+
+compact = subparsers.add_parser("compact", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
+#parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
+add.add_argument("--no-lowercase-table", action="store_false", dest="lower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
+update = subparsers.add_parser("update_schema", aliases=['update', 'update-schema'])
+# add.add_argument("--update-schema", "--update", "-u", dest="update", action="store_true", help="Run the schema creation queries and exit")
+add.add_argument("--no-atomic", action="store_false", dest="atomic", help="Run commit on every insert instead of at the end of the loop.")
 parser.add_argument("--verbose", "-v", action="store_true", help="Print some more information without changing the exception raising policy.")
-parser.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
+add.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
+extract.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
-
-
-if args.out and not args.out == str(pathlib.Path.cwd()) and not args.extract:
-    args.extract = True
+if args.verbose or args.debug:
+    print("* Parsed Command Line Arguments: ", end=' ', flush=True)
+    print(args)
 
 def cleantablename(instring: str):
     out = instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
-    if args.lower:
+    if args.mode == 'add' and args.lower:
         return out.lower()
     else:
         return out
@@ -50,8 +59,10 @@ def cleantablename(instring: str):
 
 def infertableadd():
     base: pathlib.Path = pathlib.Path(args.files[0]).resolve()
+
     if not base.exists():
         return None
+
     f: str = None
     if base.is_file():
         f = cleantablename(base.parent.name)
@@ -69,7 +80,7 @@ def infertableextract():
         f = cleantablename(args.files[0])
         args.files.pop(0)
         return f
-    elif args.out:
+    elif args.mode == 'extract' and args.out:
         f = cleantablename(pathlib.Path(args.out).name)
         return f
     else:
@@ -82,17 +93,15 @@ def calculatehash(file: bytes):
     return filehash.hexdigest()
 
 
-if not args.table and not args.compact and not args.drop:
-    if args.files and not args.extract:
+if not args.table and (args.mode == 'add' or args.mode == 'extract'):
+    if args.mode == 'add' and args.files:
         args.table = infertableadd()
         if not args.table:
             raise RuntimeError("File or Directory specified not found and --table was not specified.")
-    elif args.files and (args.extract or args.drop):
+    elif args.mode == 'extract' and args.files:
         args.table = infertableextract()
         if not args.table:
             raise RuntimeError("File or Directory specified not found and --table was not specified.")
-    elif not args.files:
-        raise RuntimeError("--table must be specified if compact mode is not active.")
 
 def globlist(listglob: list):
     outlist: list = []
@@ -160,10 +169,10 @@ class SQLiteArchive:
 
         if self.db.is_file():
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
-            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1 and not args.extract and not args.compact:
+            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1 and (args.mode == "add" or args.mode == "update"):
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
                 self.dbcon.execute("VACUUM;")
-        elif not self.db.is_file() and not args.extract and not args.compact:
+        elif not self.db.is_file() and (args.mode == "add" or args.mode == "update"):
             self.db.touch()
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
             self.dbcon.execute("PRAGMA auto_vacuum = 1;")
@@ -171,19 +180,19 @@ class SQLiteArchive:
         else:
             raise RuntimeError("Extract mode and Compact mode require an existing database.")
 
-        if args.extract:
+        if args.mode == 'extract':
             self.dbcon.text_factory = bytes
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
-        if not args.compact or len(args.files) > 0:
+        if (args.mode == 'add' or args.mode == 'extract') and'files' in args and len(args.files) > 0:
             listglob: list = globlist(args.files)
             if args.debug or args.verbose:
                 print(listglob, end="\n\n")
             self.files = [i for i in listglob if i.is_file()]
             if args.debug or args.verbose:
                 print(self.files)
-        if len(self.files) == 0 and not args.extract and not args.compact and not args.update and not args.drop:
+        if len(self.files) == 0 and args.mode == 'add':
             raise RuntimeError("No files were found.")
 
     def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False, returndata = False):
@@ -261,7 +270,7 @@ class SQLiteArchive:
                 print("done")
 
     def schema(self):
-        createtable = 'CREATE TABLE IF NOT EXISTS {} ( "pk" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE );'.format(args.table)
+        createtable = 'CREATE TABLE IF NOT EXISTS {} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT PRIMARY KEY NOT NULL UNIQUE );'.format(args.table)
         self.execquerycommit(createtable)
         createindex = 'CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table)
         self.execquerycommit(createindex)
@@ -476,16 +485,16 @@ class SQLiteArchive:
 
 sqlitearchive: SQLiteArchive = SQLiteArchive()
 
-if args.update:
+if args.mode == 'update':
     sqlitearchive.schema()
-elif args.drop:
+elif args.mode == 'drop':
     sqlitearchive.drop()
-elif args.compact and not args.files:
+elif args.mode == 'compact' and not args.files:
     sqlitearchive.compact()
-elif args.compact and args.files and not args.update:
+elif args.mode == 'compact' and args.files:
     sqlitearchive.add()
     atexit.register(sqlitearchive.compact)
-elif args.extract and not args.update:
+elif args.mode == 'extract':
     sqlitearchive.extract()
 else:
     sqlitearchive.add()
