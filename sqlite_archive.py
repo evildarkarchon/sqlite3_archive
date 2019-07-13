@@ -13,36 +13,39 @@ from typing import Any, Dict, List, Tuple
 
 # from collections import OrderedDict
 
+files_args: tuple = ("files", "*")
+lowercase_table_args: tuple = ("--no-lowercase-table", "store_false", "lower", "Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
+
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 subparsers: argparse.ArgumentParser = parser.add_subparsers(dest="mode")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
 parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
-drop: argparse.ArgumentParser = subparsers.add_parser('drop', aliases=['drop-table', 'drop_table'], help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done, by default.")
-#parser.add_argument("--drop-table", "--drop", action="store_true", dest="drop", help="Drop the table specified in the --table argument. NOTE: this will run VACUUM when done, by default.")
+parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
+parser.add_argument("--verbose", "-v", action="store_true", help="Print some more information without changing the exception raising policy.")
+
+drop: argparse.ArgumentParser = subparsers.add_parser('drop', aliases=['drop-table', 'drop_table'], help="Drop the specified table. NOTE: this will run VACUUM when done, by default.")
 drop.add_argument("--no-drop-vacuum", action="store_false", dest="drop_vacuum", help="Do not execute VACUUM when dropping a table")
 drop.add_argument("table", help="Name of table to use")
-#parser.add_argument("--extract", "-x", dest="extract", action="store_true", help="Extract files from a table instead of adding them.")
-extract: argparse.ArgumentParser = subparsers.add_parser('extract', help="Extract files from a table instead of adding them.")
-extract.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to, if in extraction mode (defaults to current directory).", default=str(pathlib.Path.cwd()))
 
 add = subparsers.add_parser("add", help="Add files to the database.")
 add.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
 add.add_argument("--no-replace-vacuum", action="store_false", dest="replace_vacuum", help="Do not run the VACUUM command after replacing data.")
-parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
 add.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
 add.add_argument("--no-dups", action="store_false", dest="dups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 add.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
 add.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
+add.add_argument(lowercase_table_args[0], action=lowercase_table_args[1], dest=lowercase_table_args[2], help=lowercase_table_args[3])
+add.add_argument("--no-atomic", action="store_false", dest="atomic", help="Run commit on every insert instead of at the end of the loop.")
+add.add_argument(files_args[0], nargs=files_args[1], help="Files to be archived in the SQLite Database.")
 
 compact = subparsers.add_parser("compact", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
-#parser.add_argument("--compact", action="store_true", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
-add.add_argument("--no-lowercase-table", action="store_false", dest="lower", help="Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
-update = subparsers.add_parser("update_schema", aliases=['update', 'update-schema'])
-# add.add_argument("--update-schema", "--update", "-u", dest="update", action="store_true", help="Run the schema creation queries and exit")
-add.add_argument("--no-atomic", action="store_false", dest="atomic", help="Run commit on every insert instead of at the end of the loop.")
-parser.add_argument("--verbose", "-v", action="store_true", help="Print some more information without changing the exception raising policy.")
-add.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
-extract.add_argument("files", nargs="*", help="Files to be archived in the SQLite Database.")
+
+update = subparsers.add_parser("update_schema", aliases=['update', 'update-schema'], help="Runs the table creation queries and exits.")
+
+extract: argparse.ArgumentParser = subparsers.add_parser('extract', help="Extract files from a table instead of adding them.")
+extract.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to. Defaults to a directory named after the table in the current directory.")
+extract.add_argument(lowercase_table_args[0], action=lowercase_table_args[1], dest=lowercase_table_args[2], help=lowercase_table_args[3])
+extract.add_argument(files_args[0], nargs=files_args[1], help="Files to be extracted from the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
 if args.verbose or args.debug:
@@ -51,7 +54,7 @@ if args.verbose or args.debug:
 
 def cleantablename(instring: str):
     out = instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
-    if args.mode == 'add' and args.lower:
+    if args.lower:
         return out.lower()
     else:
         return out
@@ -270,7 +273,7 @@ class SQLiteArchive:
                 print("done")
 
     def schema(self):
-        createtable = 'CREATE TABLE IF NOT EXISTS {} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT PRIMARY KEY NOT NULL UNIQUE );'.format(args.table)
+        createtable = 'CREATE TABLE IF NOT EXISTS {} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );'.format(args.table)
         self.execquerycommit(createtable)
         createindex = 'CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table)
         self.execquerycommit(createindex)
@@ -418,6 +421,9 @@ class SQLiteArchive:
         if len(self.execquerynocommit("pragma table_info({})".format(args.table), returndata=True)) < 1:
             raise sqlite3.OperationalError("No such table")
         
+        if not args.out:
+            args.out = pathlib.Path.cwd().joinpath(args.table)
+        
         outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
         if outputdir.is_file():
             raise RuntimeError("The output directory specified points to a file.")
@@ -457,7 +463,7 @@ class SQLiteArchive:
                 if not pathlib.Path(outpath.parent).exists():
                     pathlib.Path(outpath.parent).mkdir(parents=True)
 
-                print("Extracting {}...".format(str(outpath)), end=' ', flush=True)
+                print("* Extracting {}...".format(str(outpath)), end=' ', flush=True)
                 outpath.write_bytes(data)
                 print("done")
             except sqlite3.DatabaseError:
@@ -472,7 +478,7 @@ class SQLiteArchive:
             row = cursor.fetchone()  # Normal end of loop
 
     def compact(self):
-        print("Compacting the database, this might take a while...", end=' ', flush=True)
+        print("* Compacting the database, this might take a while...", end=' ', flush=True)
 
         try:
             self.dbcon.execute("VACUUM;")
