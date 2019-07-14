@@ -13,13 +13,13 @@ from typing import Any, Dict, List, Tuple
 
 # from collections import OrderedDict
 
-files_args: tuple = ("files", "*")
-lowercase_table_args: tuple = ("--no-lowercase-table", "store_false", "lower", "Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
+files_args: Tuple = ("files", "*")
+lowercase_table_args: Tuple = ("--no-lowercase-table", "store_false", "lower", "Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
+table_arguments: Tuple = ("--table", "-t", "Name of table to use.", "table")
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
 subparsers: argparse.ArgumentParser = parser.add_subparsers(dest="mode")
 parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
-parser.add_argument("--table", "-t", dest="table", type=str, help="Name of table to use.")
 parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
 parser.add_argument("--verbose", "-v", action="store_true", help="Print some more information without changing the exception raising policy.")
 
@@ -28,6 +28,7 @@ drop.add_argument("--no-drop-vacuum", action="store_false", dest="drop_vacuum", 
 drop.add_argument("table", help="Name of table to use")
 
 add = subparsers.add_parser("add", help="Add files to the database.")
+add.add_argument(table_arguments[0], table_arguments[1], dest=table_arguments[3], type=str, help=table_arguments[2])
 add.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
 add.add_argument("--no-replace-vacuum", action="store_false", dest="replace_vacuum", help="Do not run the VACUUM command after replacing data.")
 add.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
@@ -43,6 +44,7 @@ compact = subparsers.add_parser("compact", help="Run the VACUUM query on the dat
 update = subparsers.add_parser("update_schema", aliases=['update', 'update-schema'], help="Runs the table creation queries and exits.")
 
 extract: argparse.ArgumentParser = subparsers.add_parser('extract', help="Extract files from a table instead of adding them.")
+extract.add_argument(table_arguments[0], table_arguments[1], dest=table_arguments[3], type=str, help=table_arguments[2])
 extract.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to. Defaults to a directory named after the table in the current directory.")
 extract.add_argument(lowercase_table_args[0], action=lowercase_table_args[1], dest=lowercase_table_args[2], help=lowercase_table_args[3])
 extract.add_argument(files_args[0], nargs=files_args[1], help="Files to be extracted from the SQLite Database.")
@@ -425,9 +427,9 @@ class SQLiteArchive:
             args.out = pathlib.Path.cwd().joinpath(args.table.replace('_', ' '))
         
         outputdir: pathlib.Path = None
-        if args.out and not pathlib.Path(args.out).is_absolute():
+        if args.out and pathlib.Path(args.out).exists():
             outputdir = pathlib.Path(args.out).resolve()
-        elif args.out and pathlib.Path(args.out).is_absolute():
+        else:
             outputdir = pathlib.Path(args.out)
         
         if outputdir.is_file():
@@ -437,6 +439,9 @@ class SQLiteArchive:
             if args.verbose or args.debug:
                 print("Creating output directory...")
             outputdir.mkdir(parents=True)
+        
+        if not outputdir.is_absolute():
+            outputdir = outputdir.resolve()
         if args.debug or args.verbose:
             print(len(self.files))
             print(repr(tuple(self.files)))
