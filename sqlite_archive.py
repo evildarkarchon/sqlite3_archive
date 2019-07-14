@@ -424,7 +424,9 @@ class SQLiteArchive:
         if not args.out:
             args.out = pathlib.Path.cwd().joinpath(args.table)
         
-        outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
+        if args.out and not pathlib.Path(args.out).is_absolute():
+            outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
+        
         if outputdir.is_file():
             raise RuntimeError("The output directory specified points to a file.")
 
