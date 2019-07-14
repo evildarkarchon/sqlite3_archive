@@ -422,10 +422,13 @@ class SQLiteArchive:
             raise sqlite3.OperationalError("No such table")
         
         if not args.out:
-            args.out = pathlib.Path.cwd().joinpath(args.table)
+            args.out = pathlib.Path.cwd().joinpath(args.table.replace('_', ' '))
         
+        outputdir: pathlib.Path = None
         if args.out and not pathlib.Path(args.out).is_absolute():
-            outputdir: pathlib.Path = pathlib.Path(args.out).resolve()
+            outputdir = pathlib.Path(args.out).resolve()
+        elif args.out and pathlib.Path(args.out).is_absolute():
+            outputdir = pathlib.Path(args.out)
         
         if outputdir.is_file():
             raise RuntimeError("The output directory specified points to a file.")
