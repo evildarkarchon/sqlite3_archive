@@ -54,13 +54,15 @@ if args.verbose or args.debug:
     print("* Parsed Command Line Arguments: ", end=' ', flush=True)
     print(args)
 
-def cleantablename(instring: str):
-    out = instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_')
-    if args.lower:
+def cleantablename(instring: str, lower: bool = False):
+    out = instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_').replace('-', '_').replace('#', '')
+    if lower:
         return out.lower()
     else:
         return out
 
+if "table" in args and args.table and "lower" in args:
+    args.table = cleantablename(args.table)
 
 def infertableadd():
     base: pathlib.Path = pathlib.Path(args.files[0]).resolve()
@@ -70,9 +72,9 @@ def infertableadd():
 
     f: str = None
     if base.is_file():
-        f = cleantablename(base.parent.name)
+        f = cleantablename(base.parent.name, args.lower)
     elif base.is_dir():
-        f = cleantablename(base.name)
+        f = cleantablename(base.name, args.lower)
 
     if f:
         return f
@@ -85,8 +87,8 @@ def infertableextract():
         f = cleantablename(args.files[0])
         args.files.pop(0)
         return f
-    elif args.mode == 'extract' and args.out:
-        f = cleantablename(pathlib.Path(args.out).name)
+    elif args.out:
+        f = cleantablename(pathlib.Path(args.out).name, args.lower)
         return f
     else:
         return None
@@ -98,15 +100,15 @@ def calculatehash(file: bytes):
     return filehash.hexdigest()
 
 
-if not args.table and (args.mode == 'add' or args.mode == 'extract'):
+if "table" in args and not args.table:
     if args.mode == 'add' and args.files:
         args.table = infertableadd()
         if not args.table:
-            raise RuntimeError("File or Directory specified not found and --table was not specified.")
+            raise RuntimeError("File or Directory specified not found and table was not specified.")
     elif args.mode == 'extract' and args.files:
         args.table = infertableextract()
         if not args.table:
-            raise RuntimeError("File or Directory specified not found and --table was not specified.")
+            raise RuntimeError("File or Directory specified not found and table was not specified.")
 
 def globlist(listglob: list):
     outlist: list = []
@@ -165,7 +167,6 @@ def duplist(dups: dict, dbname: str):
         if args.dups_file and dupsexist:
             with open(args.dups_file, 'w') as dupsjson:
                 json.dump(dups, dupsjson, indent=4)
-
 
 class SQLiteArchive:
     def __init__(self):
