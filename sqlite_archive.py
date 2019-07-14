@@ -41,7 +41,8 @@ add.add_argument(files_args[0], nargs=files_args[1], help="Files to be archived 
 
 compact = subparsers.add_parser("compact", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
 
-update = subparsers.add_parser("update_schema", aliases=['update', 'update-schema'], help="Runs the table creation queries and exits.")
+create = subparsers.add_parser("create", aliases=['create-table', 'create_table'], help="Runs the table creation queries and exits.")
+create.add_argument("table", help=table_arguments[2])
 
 extract: argparse.ArgumentParser = subparsers.add_parser('extract', help="Extract files from a table instead of adding them.")
 extract.add_argument(table_arguments[0], table_arguments[1], dest=table_arguments[3], type=str, help=table_arguments[2])
@@ -175,10 +176,10 @@ class SQLiteArchive:
 
         if self.db.is_file():
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
-            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1 and (args.mode == "add" or args.mode == "update"):
+            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1 and args.mode in ("add", "create"):
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
                 self.dbcon.execute("VACUUM;")
-        elif not self.db.is_file() and (args.mode == "add" or args.mode == "update"):
+        elif not self.db.is_file() and args.mode in ("add", "create"):
             self.db.touch()
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
             self.dbcon.execute("PRAGMA auto_vacuum = 1;")
@@ -191,7 +192,7 @@ class SQLiteArchive:
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
-        if (args.mode == 'add' or args.mode == 'extract') and'files' in args and len(args.files) > 0:
+        if args.mode in ("add", "extract") and'files' in args and len(args.files) > 0:
             listglob: list = globlist(args.files)
             if args.debug or args.verbose:
                 print(listglob, end="\n\n")
@@ -502,7 +503,7 @@ class SQLiteArchive:
 
 sqlitearchive: SQLiteArchive = SQLiteArchive()
 
-if args.mode == 'update':
+if args.mode == 'create':
     sqlitearchive.schema()
 elif args.mode == 'drop':
     sqlitearchive.drop()
