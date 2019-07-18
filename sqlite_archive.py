@@ -32,7 +32,7 @@ add = subparsers.add_parser("add", help="Add files to the database.")
 add.add_argument(table_arguments[0], table_arguments[1], dest=table_arguments[3], type=str, help=table_arguments[2])
 add.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
 add.add_argument("--no-replace-vacuum", action="store_false", dest="replace_vacuum", help="Do not run the VACUUM command after replacing data.")
-add.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default="{}/duplicates.json".format(pathlib.Path.cwd()))
+add.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default=f"{pathlib.Path.cwd()}/duplicates.json")
 add.add_argument("--no-dups", action="store_false", dest="dups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
 add.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
 add.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
@@ -113,7 +113,7 @@ class FileInfo:
     def verify(self, refhash: str):
         calchash = self.calculatehash()
         if args.debug or args.verbose:
-            print("* Verifying digest for {}...".format(self.name), end = ' ', flush=True)
+            print(f"* Verifying digest for {self.name}...", end = ' ', flush=True)
         if calchash == refhash:
             if args.debug or args.verbose:
                 print("pass", flush=True)
@@ -185,9 +185,9 @@ def duplist(dups: dict, dbname: str):
                 dupsexist = True
         if not args.hidedups and dupsexist:
             if args.dupscurrent and dbname in keylist:
-                print("Duplicate Files:\n {}".format(json.dumps(dups[dbname], indent=4)))
+                print(f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
             elif not args.dupscurrent:
-                print("Duplicate files:\n {}".format(json.dumps(dups, indent=4)))
+                print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
         if args.dups_file and dupsexist:
             with open(args.dups_file, 'w') as dupsjson:
                 json.dump(dups, dupsjson, indent=4)
@@ -281,9 +281,9 @@ class SQLiteArchive:
             self.dbcon.commit()
     
     def drop(self):
-        print("* Deleting table {}...".format(args.table), end=' ', flush=True)
+        print(f"* Deleting table {args.table}...", end=' ', flush=True)
         try:
-            self.execquerycommit("DROP TABLE {}".format(args.table))
+            self.execquerycommit(f"DROP TABLE {args.table}")
         except sqlite3.DatabaseError:
             print("failed")
             raise
@@ -293,9 +293,9 @@ class SQLiteArchive:
                 self.compact()
     
     def rename(self, name1: str, name2: str):
-            print("* Renaming {0} to {1}...".format(name1, name2), end=' ', flush=True)
+            print(f"* Renaming {name1} to {name2}...", end=' ', flush=True)
             try:
-                self.execquerycommit("update {} set filename = ? where filename = ?".format(args.table), (name1, name2))
+                self.execquerycommit(f"update {args.table} set filename = ? where filename = ?", (name1, name2))
             except sqlite3.DatabaseError:
                 print("failed")
                 raise
@@ -303,9 +303,9 @@ class SQLiteArchive:
                 print("done")
 
     def schema(self):
-        createtable = 'CREATE TABLE IF NOT EXISTS {} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );'.format(args.table)
+        createtable = f'CREATE TABLE IF NOT EXISTS {args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );'
         self.execquerycommit(createtable)
-        createindex = 'CREATE UNIQUE INDEX IF NOT EXISTS {0}_index ON {0} ( "filename", "hash" );'.format(args.table)
+        createindex = f'CREATE UNIQUE INDEX IF NOT EXISTS {args.table}_index ON {args.table} ( "filename", "hash" );'
         self.execquerycommit(createindex)
     
     def calcname(self, inpath: pathlib.Path):
@@ -330,16 +330,16 @@ class SQLiteArchive:
             return oldbehavior()
     def add(self):
         def insert():
-            print("* Adding {} to {}...".format(fileinfo.name, args.table), end=' ', flush=True)
-            query="insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table)
+            print(f"* Adding {fileinfo.name} to {args.table}...", end=' ', flush=True)
+            query=f"insert into {args.table} (filename, data, hash) values (?, ?, ?)"
             values=(fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
                 self.execquerynocommit(query, values)
             else:
                 self.execquerycommit(query, values)
         def replace():
-            print("* Replacing {}'s data in {} with specified file...".format(fileinfo.name, args.table), end=' ', flush=True)
-            query="replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table)
+            print(f"* Replacing {fileinfo.name}'s data in {args.table} with specified file...", end=' ', flush=True)
+            query=f"replace into {args.table} (filename, data, hash) values (?, ?, ?)"
             values=(fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
                 self.execquerynocommit(query, values)
@@ -372,7 +372,7 @@ class SQLiteArchive:
                 if i.is_file():
                     exists: int = None
                     if args.replace:
-                        exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values=(fileinfo.name,), one=True))
+                        exists = int(self.execquerynocommit(f"select count(distinct filename) from {args.table} where filename = ?", values=(fileinfo.name,), one=True))
                         if args.debug or args.verbose:
                             print(exists)
                     fileinfo.data = bytes(i.read_bytes())
@@ -384,7 +384,7 @@ class SQLiteArchive:
                         insert()
             except sqlite3.IntegrityError:
 
-                query = self.execquerynocommit("select filename from {} where hash == ?".format(args.table), (fileinfo.digest,))
+                query = self.execquerynocommit(f"select filename from {args.table} where hash == ?", (fileinfo.digest,))
                 if query and query[0][0] and len(query[0][0]) >= 1:
                     print("duplicate")
 
@@ -436,18 +436,18 @@ class SQLiteArchive:
             if args.files and len(args.files) > 0:
                 if len(self.files) > 1:
                     questionmarks: Any = '?' * len(args.files)
-                    out.insert(0, "select rowid, data from {0} where filename in ({1}) order by filename asc".format(args.table, ','.join(questionmarks)))
-                    out.insert(1, "select rowid, image_data from {0} where filename in ({1}) order by filename asc (".format(args.table, ','.join(questionmarks)))
+                    out.insert(0, f"select rowid, data from {args.table} where filename in ({','.join(questionmarks)}) order by filename asc")
+                    out.insert(1, f"select rowid, image_data from {args.table} where filename in ({','.join(questionmarks)}) order by filename asc")
                 elif args.files and len(args.files) == 1:
-                    out.insert(0, "select rowid, data from {} where filename == ? order by filename asc".format(args.table))
-                    out.insert(1, "select rowid, image_data from {} where filename == ? order by filename asc".format(args.table))
+                    out.insert(0, f"select rowid, data from {args.table} where filename == ? order by filename asc")
+                    out.insert(1, f"select rowid, image_data from {args.table} where filename == ? order by filename asc")
             else:
-                out.insert(0, "select rowid, data from {} order by filename asc".format(args.table))
-                out.insert(1, "select rowid, image_data from {} order by filename asc".format(args.table))
+                out.insert(0, f"select rowid, data from {args.table} order by filename asc")
+                out.insert(1, f"select rowid, image_data from {args.table} order by filename asc")
         
             return out
         
-        if len(self.execquerynocommit("pragma table_info({})".format(args.table), returndata=True)) < 1:
+        if len(self.execquerynocommit(f"pragma table_info({args.table})", returndata=True)) < 1:
             raise sqlite3.OperationalError("No such table")
         
         if not args.out:
@@ -494,21 +494,21 @@ class SQLiteArchive:
             try:
                 fileinfo: FileInfo = FileInfo()
                 fileinfo.data = bytes(row[1])
-                fileinfo.name = self.execquerynocommit("select filename from {} where rowid == ?".format(args.table), values=(str(row[0]),), one=True, decode=True)
+                fileinfo.name = self.execquerynocommit(f"select filename from {args.table} where rowid == ?", values=(str(row[0]),), one=True, decode=True)
                 # fileinfo.name = fileinfo.name.decode(sys.stdout.encoding) if sys.stdout.encoding else fileinfo.name.decode("utf-8")
-                fileinfo.digest = self.execquerynocommit("select hash from {} where rowid == ?".format(args.table), values=(str(row[0]),), one=True, decode=True)
+                fileinfo.digest = self.execquerynocommit(f"select hash from {args.table} where rowid == ?", values=(str(row[0]),), one=True, decode=True)
 
                 if not fileinfo.verify(fileinfo.digest) and not args.force:
                     if args.debug or args.verbose:
-                        print("Calculated Digest: {}".format(fileinfo.calculatehash()))
-                        print("Recorded Hash: {}".format(fileinfo.digest))
+                        print(f"Calculated Digest: {fileinfo.calculatehash()}")
+                        print(f"Recorded Hash: {fileinfo.digest}")
                     raise ValueError("The digest in the database does not match the calculated digest for the data.")
 
                 outpath: pathlib.Path = outputdir.joinpath(fileinfo.name)
                 if not pathlib.Path(outpath.parent).exists():
                     pathlib.Path(outpath.parent).mkdir(parents=True)
 
-                print("* Extracting {}...".format(str(outpath)), end=' ', flush=True)
+                print(f"* Extracting {str(outpath)}...", end=' ', flush=True)
                 outpath.write_bytes(fileinfo.data)
                 print("done")
             except sqlite3.DatabaseError:
