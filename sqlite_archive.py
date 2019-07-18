@@ -9,6 +9,7 @@ import json
 import pathlib
 import sqlite3
 import sys
+from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
 # from collections import OrderedDict
@@ -48,6 +49,7 @@ extract: argparse.ArgumentParser = subparsers.add_parser('extract', help="Extrac
 extract.add_argument(table_arguments[0], table_arguments[1], dest=table_arguments[3], type=str, help=table_arguments[2])
 extract.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to. Defaults to a directory named after the table in the current directory.")
 extract.add_argument(lowercase_table_args[0], action=lowercase_table_args[1], dest=lowercase_table_args[2], help=lowercase_table_args[3])
+extract.add_argument("--force", "-f", dest="force", action="store_true", help="Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database.")
 extract.add_argument(files_args[0], nargs=files_args[1], help="Files to be extracted from the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
@@ -62,7 +64,7 @@ def cleantablename(instring: str, lower: bool = False):
     else:
         return out
 
-if "table" in args and args.table and "lower" in args:
+if "table" in args and args.table:
     args.table = cleantablename(args.table)
 
 def infertableadd():
@@ -94,11 +96,32 @@ def infertableextract():
     else:
         return None
 
-
-def calculatehash(file: bytes):
-    filehash = hashlib.sha512()
-    filehash.update(file)
-    return filehash.hexdigest()
+@dataclass
+class FileInfo:
+    name: str = None
+    data: bytes = None
+    digest: str = None
+    
+    def calculatehash(self):
+        if self.data:
+            filehash = hashlib.sha512()
+            filehash.update(self.data)
+            return filehash.hexdigest()
+        else:
+            return None
+    
+    def verify(self, refhash: str):
+        calchash = self.calculatehash()
+        if args.debug or args.verbose:
+            print("* Verifying digest for {}...".format(self.name), end = ' ', flush=True)
+        if calchash == refhash:
+            if args.debug or args.verbose:
+                print("pass", flush=True)
+            return True
+        elif calchash != refhash:
+            if args.debug or args.verbose:
+                print("failed", flush=True)
+            return False
 
 
 if "table" in args and not args.table:
@@ -202,7 +225,7 @@ class SQLiteArchive:
         if len(self.files) == 0 and args.mode == 'add':
             raise RuntimeError("No files were found.")
 
-    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False, returndata = False):
+    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False, returndata = False, decode: bool = False):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         output: Any = None
@@ -214,7 +237,10 @@ class SQLiteArchive:
                 output = self.dbcon.execute(query)
 
             if one:
-                return output.fetchone()[0]
+                _out=output.fetchone()[0]
+                if type(_out) is bytes and decode:
+                    _out=_out.decode(sys.stdout.encoding) if sys.stdout.encoding else _out.decode("utf-8")
+                return _out
             elif raw:
                 return output
             else:
@@ -304,17 +330,17 @@ class SQLiteArchive:
             return oldbehavior()
     def add(self):
         def insert():
-            print("* Adding {} to {}...".format(name, args.table), end=' ', flush=True)
+            print("* Adding {} to {}...".format(fileinfo.name, args.table), end=' ', flush=True)
             query="insert into {} (filename, data, hash) values (?, ?, ?)".format(args.table)
-            values=(name, data, digest)
+            values=(fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
                 self.execquerynocommit(query, values)
             else:
                 self.execquerycommit(query, values)
         def replace():
-            print("* Replacing {}'s data in {} with specified file...".format(name, args.table), end=' ', flush=True)
+            print("* Replacing {}'s data in {} with specified file...".format(fileinfo.name, args.table), end=' ', flush=True)
             query="replace into {} (filename, data, hash) values (?, ?, ?)".format(args.table)
-            values=(name, data, digest)
+            values=(fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
                 self.execquerynocommit(query, values)
             else:
@@ -341,17 +367,16 @@ class SQLiteArchive:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
-
-            name: str = self.calcname(i)
+            fileinfo = FileInfo(name=self.calcname(i))
             try:
                 if i.is_file():
                     exists: int = None
                     if args.replace:
-                        exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values=(name,), one=True))
+                        exists = int(self.execquerynocommit("select count(distinct filename) from {} where filename = ?".format(args.table), values=(fileinfo.name,), one=True))
                         if args.debug or args.verbose:
                             print(exists)
-                    data: bytes = bytes(i.read_bytes())
-                    digest: str = calculatehash(data)
+                    fileinfo.data = bytes(i.read_bytes())
+                    fileinfo.digest = fileinfo.calculatehash()
                     if args.replace and exists and exists > 0:
                         replace()
                         replaced += 1
@@ -359,7 +384,7 @@ class SQLiteArchive:
                         insert()
             except sqlite3.IntegrityError:
 
-                query = self.execquerynocommit("select filename from {} where hash == ?".format(args.table), (digest,))
+                query = self.execquerynocommit("select filename from {} where hash == ?".format(args.table), (fileinfo.digest,))
                 if query and query[0][0] and len(query[0][0]) >= 1:
                     print("duplicate")
 
@@ -467,16 +492,24 @@ class SQLiteArchive:
         row: Any = cursor.fetchone()
         while row:
             try:
-                data: bytes = bytes(row[1])
-                name: Any = self.execquerynocommit("select filename from {} where rowid == ?".format(args.table), values=(str(row[0]),), one=True)
-                name = name.decode(sys.stdout.encoding) if sys.stdout.encoding else name.decode("utf-8")
+                fileinfo: FileInfo = FileInfo()
+                fileinfo.data = bytes(row[1])
+                fileinfo.name = self.execquerynocommit("select filename from {} where rowid == ?".format(args.table), values=(str(row[0]),), one=True, decode=True)
+                # fileinfo.name = fileinfo.name.decode(sys.stdout.encoding) if sys.stdout.encoding else fileinfo.name.decode("utf-8")
+                fileinfo.digest = self.execquerynocommit("select hash from {} where rowid == ?".format(args.table), values=(str(row[0]),), one=True, decode=True)
 
-                outpath: pathlib.Path = outputdir.joinpath(name)
+                if not fileinfo.verify(fileinfo.digest) and not args.force:
+                    if args.debug or args.verbose:
+                        print("Calculated Digest: {}".format(fileinfo.calculatehash()))
+                        print("Recorded Hash: {}".format(fileinfo.digest))
+                    raise ValueError("The digest in the database does not match the calculated digest for the data.")
+
+                outpath: pathlib.Path = outputdir.joinpath(fileinfo.name)
                 if not pathlib.Path(outpath.parent).exists():
                     pathlib.Path(outpath.parent).mkdir(parents=True)
 
                 print("* Extracting {}...".format(str(outpath)), end=' ', flush=True)
-                outpath.write_bytes(data)
+                outpath.write_bytes(fileinfo.data)
                 print("done")
             except sqlite3.DatabaseError:
                 print("failed")
