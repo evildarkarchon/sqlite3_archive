@@ -312,6 +312,7 @@ class SQLiteArchive:
         parents = sorted(inpath.parents)
         if args.verbose or args.debug:
             print(parents)
+        
         def oldbehavior():
             if args.verbose or args.debug:
                 print("Using old name calculation behavior")
@@ -319,13 +320,14 @@ class SQLiteArchive:
                 return str(inpath.relative_to(inpath.parent.parent))
             else:
                 return str(inpath.relative_to(inpath.parent))
+        
         try:
             if inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
                 return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
             elif not inpath.is_absolute():
                 return str(inpath.relative_to(parents[1]))
             else:
-                return str(inpath.relative_to(self.db.parent))
+                return oldbehavior()
         except (ValueError, IndexError):
             return oldbehavior()
     def add(self):
@@ -353,13 +355,7 @@ class SQLiteArchive:
                 dups = json.load(dupsjson)
         replaced: int = 0
         
-        # def calcdbname():
-        #     try:
-        #         return str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
-        #     except ValueError:
-        #         return str(self.db.relative_to(self.db.parent))
-        
-        dbname: str = str(self.calcname(self.db))
+        dbname: str = self.calcname(self.db)
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
         
