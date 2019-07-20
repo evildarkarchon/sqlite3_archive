@@ -353,13 +353,13 @@ class SQLiteArchive:
                 dups = json.load(dupsjson)
         replaced: int = 0
         
-        def calcdbname():
-            try:
-                return str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
-            except ValueError:
-                return str(self.db.relative_to(self.db.parent))
+        # def calcdbname():
+        #     try:
+        #         return str(self.db.relative_to(pathlib.Path(args.dups_file).resolve().parent))
+        #     except ValueError:
+        #         return str(self.db.relative_to(self.db.parent))
         
-        dbname: str = calcdbname()
+        dbname: str = str(self.calcname(self.db))
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
         
