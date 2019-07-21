@@ -491,7 +491,6 @@ class SQLiteArchive:
                 fileinfo: FileInfo = FileInfo()
                 fileinfo.data = bytes(row[1])
                 fileinfo.name = self.execquerynocommit(f"select filename from {args.table} where rowid == ?", values=(str(row[0]),), one=True, decode=True)
-                # fileinfo.name = fileinfo.name.decode(sys.stdout.encoding) if sys.stdout.encoding else fileinfo.name.decode("utf-8")
                 fileinfo.digest = self.execquerynocommit(f"select hash from {args.table} where rowid == ?", values=(str(row[0]),), one=True, decode=True)
 
                 if not fileinfo.verify(fileinfo.digest) and not args.force:
@@ -501,8 +500,10 @@ class SQLiteArchive:
                     raise ValueError("The digest in the database does not match the calculated digest for the data.")
 
                 outpath: pathlib.Path = outputdir.joinpath(fileinfo.name)
-                if not pathlib.Path(outpath.parent).exists():
-                    pathlib.Path(outpath.parent).mkdir(parents=True)
+                
+                parent = pathlib.Path(outpath.parent)
+                if not parent.exists():
+                    parent.mkdir(parents=True)
 
                 print(f"* Extracting {str(outpath)}...", end=' ', flush=True)
                 outpath.write_bytes(fileinfo.data)
