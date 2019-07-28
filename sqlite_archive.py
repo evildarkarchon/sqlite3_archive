@@ -14,8 +14,8 @@ from typing import Any, Dict, List, Tuple
 
 files_args: Tuple = ("files", "*")
 lowercase_table_args: Tuple = (
-    "--no-lowercase-table", "store_false", "lower",
-    "Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)"
+    "--lowercase-table", "store_true", "lower",
+    "Modify the inferred table name to be lowercase (doesn't do anything if --table is specified)"
 )
 table_arguments: Tuple = ("--table", "-t", "Name of table to use.", "table")
 
