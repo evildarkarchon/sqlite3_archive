@@ -12,60 +12,160 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
-# from collections import OrderedDict
-
 files_args: Tuple = ("files", "*")
-lowercase_table_args: Tuple = ("--no-lowercase-table", "store_false", "lower", "Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)")
+lowercase_table_args: Tuple = (
+    "--no-lowercase-table", "store_false", "lower",
+    "Don't modify the inferred table name to be lowercase (doesn't do anything if --table is specified)"
+)
 table_arguments: Tuple = ("--table", "-t", "Name of table to use.", "table")
 
-parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Imports or Exports files from an sqlite3 database.")
+parser: argparse.ArgumentParser = argparse.ArgumentParser(
+    description="Imports or Exports files from an sqlite3 database.")
 subparsers: argparse.ArgumentParser = parser.add_subparsers(dest="mode")
-parser.add_argument("--db", "-d", dest="db", type=str, required=True, help="SQLite DB filename.")
-parser.add_argument("--debug", dest="debug", action="store_true", help="Supress any exception skipping and some debug info.")
-parser.add_argument("--verbose", "-v", action="store_true", help="Print some more information without changing the exception raising policy.")
+parser.add_argument("--db",
+                    "-d",
+                    dest="db",
+                    type=str,
+                    required=True,
+                    help="SQLite DB filename.")
+parser.add_argument("--debug",
+                    dest="debug",
+                    action="store_true",
+                    help="Supress any exception skipping and some debug info.")
+parser.add_argument(
+    "--verbose",
+    "-v",
+    action="store_true",
+    help=
+    "Print some more information without changing the exception raising policy."
+)
 
-drop: argparse.ArgumentParser = subparsers.add_parser('drop', aliases=['drop-table', 'drop_table'], help="Drop the specified table. NOTE: this will run VACUUM when done, by default.")
-drop.add_argument("--no-drop-vacuum", action="store_false", dest="drop_vacuum", help="Do not execute VACUUM when dropping a table")
+drop: argparse.ArgumentParser = subparsers.add_parser(
+    'drop',
+    aliases=['drop-table', 'drop_table'],
+    help=
+    "Drop the specified table. NOTE: this will run VACUUM when done, by default."
+)
+drop.add_argument("--no-drop-vacuum",
+                  action="store_false",
+                  dest="drop_vacuum",
+                  help="Do not execute VACUUM when dropping a table")
 drop.add_argument("table", help="Name of table to use")
 
 add = subparsers.add_parser("add", help="Add files to the database.")
-add.add_argument(table_arguments[0], table_arguments[1], dest=table_arguments[3], type=str, help=table_arguments[2])
-add.add_argument("--replace", "-r", action="store_true", help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation.")
-add.add_argument("--no-replace-vacuum", action="store_false", dest="replace_vacuum", help="Do not run the VACUUM command after replacing data.")
-add.add_argument("--dups-file", type=str, dest="dups_file", help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.", default=f"{pathlib.Path.cwd()}/duplicates.json")
-add.add_argument("--no-dups", action="store_false", dest="dups", help="Disables saving the duplicate list as a json file or reading an existing one from an existing file.")
-add.add_argument("--hide-dups", dest="hidedups", action="store_true", help="Hides the list of duplicate files.")
-add.add_argument("--dups-current-db", dest="dupscurrent", action="store_true", help="Only show the duplicates from the current database.")
-add.add_argument(lowercase_table_args[0], action=lowercase_table_args[1], dest=lowercase_table_args[2], help=lowercase_table_args[3])
-add.add_argument("--no-atomic", action="store_false", dest="atomic", help="Run commit on every insert instead of at the end of the loop.")
-add.add_argument(files_args[0], nargs=files_args[1], help="Files to be archived in the SQLite Database.")
+add.add_argument(table_arguments[0],
+                 table_arguments[1],
+                 dest=table_arguments[3],
+                 type=str,
+                 help=table_arguments[2])
+add.add_argument(
+    "--replace",
+    "-r",
+    action="store_true",
+    help=
+    "Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation."
+)
+add.add_argument("--no-replace-vacuum",
+                 action="store_false",
+                 dest="replace_vacuum",
+                 help="Do not run the VACUUM command after replacing data.")
+add.add_argument(
+    "--dups-file",
+    type=str,
+    dest="dups_file",
+    help=
+    "Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.",
+    default=f"{pathlib.Path.cwd()}/duplicates.json")
+add.add_argument(
+    "--no-dups",
+    action="store_false",
+    dest="dups",
+    help=
+    "Disables saving the duplicate list as a json file or reading an existing one from an existing file."
+)
+add.add_argument("--hide-dups",
+                 dest="hidedups",
+                 action="store_true",
+                 help="Hides the list of duplicate files.")
+add.add_argument("--dups-current-db",
+                 dest="dupscurrent",
+                 action="store_true",
+                 help="Only show the duplicates from the current database.")
+add.add_argument(lowercase_table_args[0],
+                 action=lowercase_table_args[1],
+                 dest=lowercase_table_args[2],
+                 help=lowercase_table_args[3])
+add.add_argument(
+    "--no-atomic",
+    action="store_false",
+    dest="atomic",
+    help="Run commit on every insert instead of at the end of the loop.")
+add.add_argument(files_args[0],
+                 nargs=files_args[1],
+                 help="Files to be archived in the SQLite Database.")
 
-compact = subparsers.add_parser("compact", help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)")
+compact = subparsers.add_parser(
+    "compact",
+    help=
+    "Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)"
+)
 
-create = subparsers.add_parser("create", aliases=['create-table', 'create_table'], help="Runs the table creation queries and exits.")
+create = subparsers.add_parser(
+    "create",
+    aliases=['create-table', 'create_table'],
+    help="Runs the table creation queries and exits.")
 create.add_argument("table", help=table_arguments[2])
 
-extract: argparse.ArgumentParser = subparsers.add_parser('extract', help="Extract files from a table instead of adding them.")
-extract.add_argument(table_arguments[0], table_arguments[1], dest=table_arguments[3], type=str, help=table_arguments[2])
-extract.add_argument("--output-dir", "-o", dest="out", type=str, help="Directory to output files to. Defaults to a directory named after the table in the current directory.")
-extract.add_argument(lowercase_table_args[0], action=lowercase_table_args[1], dest=lowercase_table_args[2], help=lowercase_table_args[3])
-extract.add_argument("--force", "-f", dest="force", action="store_true", help="Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database.")
-extract.add_argument(files_args[0], nargs=files_args[1], help="Files to be extracted from the SQLite Database.")
+extract: argparse.ArgumentParser = subparsers.add_parser(
+    'extract', help="Extract files from a table instead of adding them.")
+extract.add_argument(table_arguments[0],
+                     table_arguments[1],
+                     dest=table_arguments[3],
+                     type=str,
+                     help=table_arguments[2])
+extract.add_argument(
+    "--output-dir",
+    "-o",
+    dest="out",
+    type=str,
+    help=
+    "Directory to output files to. Defaults to a directory named after the table in the current directory."
+)
+extract.add_argument(lowercase_table_args[0],
+                     action=lowercase_table_args[1],
+                     dest=lowercase_table_args[2],
+                     help=lowercase_table_args[3])
+extract.add_argument(
+    "--force",
+    "-f",
+    dest="force",
+    action="store_true",
+    help=
+    "Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database."
+)
+extract.add_argument(files_args[0],
+                     nargs=files_args[1],
+                     help="Files to be extracted from the SQLite Database.")
 
 args: argparse.Namespace = parser.parse_args()
 if args.verbose or args.debug:
     print("* Parsed Command Line Arguments: ", end=' ', flush=True)
     print(args)
 
+
 def cleantablename(instring: str, lower: bool = False):
-    out = instring.replace(".", "_").replace(' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace('\\', '_').replace('-', '_').replace('#', '')
+    out = instring.replace(".", "_").replace(
+        ' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace(
+            '\\', '_').replace('-', '_').replace('#', '')
     if lower:
         return out.lower()
     else:
         return out
 
+
 if "table" in args and args.table:
     args.table = cleantablename(args.table)
+
 
 def infertableadd():
     base: pathlib.Path = pathlib.Path(args.files[0]).resolve()
@@ -96,12 +196,13 @@ def infertableextract():
     else:
         return None
 
+
 @dataclass
 class FileInfo:
     name: str = None
     data: bytes = None
     digest: str = None
-    
+
     def calculatehash(self):
         if self.data:
             filehash = hashlib.sha512()
@@ -109,11 +210,13 @@ class FileInfo:
             return filehash.hexdigest()
         else:
             return None
-    
+
     def verify(self, refhash: str):
         calchash = self.calculatehash()
         if args.debug or args.verbose:
-            print(f"* Verifying digest for {self.name}...", end = ' ', flush=True)
+            print(f"* Verifying digest for {self.name}...",
+                  end=' ',
+                  flush=True)
         if calchash == refhash:
             if args.debug or args.verbose:
                 print("pass", flush=True)
@@ -128,22 +231,28 @@ if "table" in args and not args.table:
     if args.mode == 'add' and args.files:
         args.table = infertableadd()
         if not args.table:
-            raise RuntimeError("File or Directory specified not found and table was not specified.")
+            raise RuntimeError(
+                "File or Directory specified not found and table was not specified."
+            )
     elif args.mode == 'extract' and args.files:
         args.table = infertableextract()
         if not args.table:
-            raise RuntimeError("File or Directory specified not found and table was not specified.")
+            raise RuntimeError(
+                "File or Directory specified not found and table was not specified."
+            )
+
 
 def globlist(listglob: list):
     outlist: list = []
-    
+
     def runglobs():
         return list(map(pathlib.Path, glob.glob(a, recursive=True)))
-        
+
     for a in listglob:
         if type(a) is str and "*" in a:
             outlist.extend(runglobs())
-        elif type(a) is pathlib.Path and a.is_file() or type(a) is str and pathlib.Path(a).is_file():
+        elif type(a) is pathlib.Path and a.is_file(
+        ) or type(a) is str and pathlib.Path(a).is_file():
             if type(a) is str:
                 outlist.append(pathlib.Path(a))
             elif type(a) is pathlib.Path:
@@ -152,11 +261,12 @@ def globlist(listglob: list):
                 continue
         elif type(a) is str and "*" not in a and pathlib.Path(a).is_file():
             outlist.append(pathlib.Path(a))
-        elif type(a) is str and "*" not in a and pathlib.Path(a).is_dir() or type(a) is pathlib.Path and a.is_dir():
+        elif type(a) is str and "*" not in a and pathlib.Path(
+                a).is_dir() or type(a) is pathlib.Path and a.is_dir():
             outlist.extend([x for x in pathlib.Path(a).rglob("*")])
         else:
             outlist.extend(runglobs())
-    
+
     outlist.sort()
 
     for i in outlist:
@@ -170,7 +280,7 @@ def globlist(listglob: list):
                     raise
                 else:
                     break
-    
+
     return outlist
 
 
@@ -185,12 +295,14 @@ def duplist(dups: dict, dbname: str):
                 dupsexist = True
         if not args.hidedups and dupsexist:
             if args.dupscurrent and dbname in keylist:
-                print(f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
+                print(
+                    f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
             elif not args.dupscurrent:
                 print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
         if args.dups_file and dupsexist:
             with open(args.dups_file, 'w') as dupsjson:
                 json.dump(dups, dupsjson, indent=4)
+
 
 class SQLiteArchive:
     def __init__(self):
@@ -199,7 +311,8 @@ class SQLiteArchive:
 
         if self.db.is_file():
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
-            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]) == 1 and args.mode in ("add", "create"):
+            if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                    ) == 1 and args.mode in ("add", "create"):
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
                 self.dbcon.execute("VACUUM;")
         elif not self.db.is_file() and args.mode in ("add", "create"):
@@ -208,14 +321,16 @@ class SQLiteArchive:
             self.dbcon.execute("PRAGMA auto_vacuum = 1;")
             self.dbcon.execute("VACUUM;")
         else:
-            raise RuntimeError("Extract mode and Compact mode require an existing database.")
+            raise RuntimeError(
+                "Extract mode and Compact mode require an existing database.")
 
         if args.mode == 'extract':
             self.dbcon.text_factory = bytes
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
-        if args.mode in ("add", "extract") and'files' in args and len(args.files) > 0:
+        if args.mode in ("add", "extract") and 'files' in args and len(
+                args.files) > 0:
             listglob: list = globlist(args.files)
             if args.debug or args.verbose:
                 print(listglob, end="\n\n")
@@ -225,21 +340,30 @@ class SQLiteArchive:
         if len(self.files) == 0 and args.mode == 'add':
             raise RuntimeError("No files were found.")
 
-    def execquerynocommit(self, query: str, values: Union[tuple, list] = None, one: bool = False, raw: bool = False, returndata = False, decode: bool = False):
+    def execquerynocommit(self,
+                          query: str,
+                          values: Union[tuple, list] = None,
+                          one: bool = False,
+                          raw: bool = False,
+                          returndata=False,
+                          decode: bool = False):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         output: Any = None
         returnlist = ("select", "SELECT", "Select")
-        if (any(i in query for i in returnlist) and returndata is False) or returndata is True:
+        if (any(i in query for i in returnlist)
+                and returndata is False) or returndata is True:
             if values:
                 output = self.dbcon.execute(query, values)
             else:
                 output = self.dbcon.execute(query)
 
             if one:
-                _out=output.fetchone()[0]
+                _out = output.fetchone()[0]
                 if type(_out) is bytes and decode:
-                    _out=_out.decode(sys.stdout.encoding) if sys.stdout.encoding else _out.decode("utf-8")
+                    _out = _out.decode(
+                        sys.stdout.encoding
+                    ) if sys.stdout.encoding else _out.decode("utf-8")
                 return _out
             elif raw:
                 return output
@@ -269,6 +393,7 @@ class SQLiteArchive:
                 raise
             else:
                 self.dbcon.commit()
+
     def execmanycommit(self, query: str, values: Union[tuple, list]):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
@@ -279,7 +404,7 @@ class SQLiteArchive:
             raise
         else:
             self.dbcon.commit()
-    
+
     def drop(self):
         print(f"* Deleting table {args.table}...", end=' ', flush=True)
         try:
@@ -291,28 +416,30 @@ class SQLiteArchive:
             print("done")
             if args.drop_vacuum:
                 self.compact()
-    
+
     def rename(self, name1: str, name2: str):
-            print(f"* Renaming {name1} to {name2}...", end=' ', flush=True)
-            try:
-                self.execquerycommit(f"update {args.table} set filename = ? where filename = ?", (name1, name2))
-            except sqlite3.DatabaseError:
-                print("failed")
-                raise
-            else:
-                print("done")
+        print(f"* Renaming {name1} to {name2}...", end=' ', flush=True)
+        try:
+            self.execquerycommit(
+                f"update {args.table} set filename = ? where filename = ?",
+                (name1, name2))
+        except sqlite3.DatabaseError:
+            print("failed")
+            raise
+        else:
+            print("done")
 
     def schema(self):
         createtable = f'CREATE TABLE IF NOT EXISTS {args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );'
         self.execquerycommit(createtable)
         createindex = f'CREATE UNIQUE INDEX IF NOT EXISTS {args.table}_index ON {args.table} ( "filename", "hash" );'
         self.execquerycommit(createindex)
-    
+
     def calcname(self, inpath: pathlib.Path):
         parents = sorted(inpath.parents)
         if args.verbose or args.debug:
             print(parents)
-        
+
         def oldbehavior():
             if args.verbose or args.debug:
                 print("Using old name calculation behavior")
@@ -320,7 +447,7 @@ class SQLiteArchive:
                 return str(inpath.relative_to(inpath.parent.parent))
             else:
                 return str(inpath.relative_to(inpath.parent))
-        
+
         try:
             if inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
                 return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
@@ -330,35 +457,42 @@ class SQLiteArchive:
                 return oldbehavior()
         except (ValueError, IndexError):
             return oldbehavior()
+
     def add(self):
         def insert():
-            print(f"* Adding {fileinfo.name} to {args.table}...", end=' ', flush=True)
-            query=f"insert into {args.table} (filename, data, hash) values (?, ?, ?)"
-            values=(fileinfo.name, fileinfo.data, fileinfo.digest)
+            print(f"* Adding {fileinfo.name} to {args.table}...",
+                  end=' ',
+                  flush=True)
+            query = f"insert into {args.table} (filename, data, hash) values (?, ?, ?)"
+            values = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
                 self.execquerynocommit(query, values)
             else:
                 self.execquerycommit(query, values)
+
         def replace():
-            print(f"* Replacing {fileinfo.name}'s data in {args.table} with specified file...", end=' ', flush=True)
-            query=f"replace into {args.table} (filename, data, hash) values (?, ?, ?)"
-            values=(fileinfo.name, fileinfo.data, fileinfo.digest)
+            print(
+                f"* Replacing {fileinfo.name}'s data in {args.table} with specified file...",
+                end=' ',
+                flush=True)
+            query = f"replace into {args.table} (filename, data, hash) values (?, ?, ?)"
+            values = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
                 self.execquerynocommit(query, values)
             else:
                 self.execquerycommit(query, values)
-        
+
         self.schema()
         dups: dict = {}
         if pathlib.Path(args.dups_file).is_file() and args.dups:
             with open(args.dups_file) as dupsjson:
                 dups = json.load(dupsjson)
         replaced: int = 0
-        
+
         dbname: str = self.calcname(self.db)
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
-        
+
         for i in self.files:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
@@ -368,7 +502,11 @@ class SQLiteArchive:
                 if i.is_file():
                     exists: int = None
                     if args.replace:
-                        exists = int(self.execquerynocommit(f"select count(distinct filename) from {args.table} where filename = ?", values=(fileinfo.name,), one=True))
+                        exists = int(
+                            self.execquerynocommit(
+                                f"select count(distinct filename) from {args.table} where filename = ?",
+                                values=(fileinfo.name, ),
+                                one=True))
                         if args.debug or args.verbose:
                             print(exists)
                     fileinfo.data = bytes(i.read_bytes())
@@ -380,7 +518,9 @@ class SQLiteArchive:
                         insert()
             except sqlite3.IntegrityError:
 
-                query = self.execquerynocommit(f"select filename from {args.table} where hash == ?", (fileinfo.digest,))
+                query = self.execquerynocommit(
+                    f"select filename from {args.table} where hash == ?",
+                    (fileinfo.digest, ))
                 if query and query[0][0] and len(query[0][0]) >= 1:
                     print("duplicate")
 
@@ -394,7 +534,7 @@ class SQLiteArchive:
                             dups[dbname].pop(z)
                         except KeyError:
                             pass
-                
+
                 if args.debug:
                     raise
                 else:
@@ -428,41 +568,41 @@ class SQLiteArchive:
 
     def extract(self):
         def calcextractquery():
-            out: list = []
             if args.files and len(args.files) > 0:
                 if len(self.files) > 1:
                     questionmarks: Any = '?' * len(args.files)
-                    out.insert(0, f"select rowid, data from {args.table} where filename in ({','.join(questionmarks)}) order by filename asc")
-                    out.insert(1, f"select rowid, image_data from {args.table} where filename in ({','.join(questionmarks)}) order by filename asc")
+                    out = f"select rowid, data from {args.table} where filename in ({','.join(questionmarks)}) order by filename asc"
                 elif args.files and len(args.files) == 1:
-                    out.insert(0, f"select rowid, data from {args.table} where filename == ? order by filename asc")
-                    out.insert(1, f"select rowid, image_data from {args.table} where filename == ? order by filename asc")
+                    out = f"select rowid, data from {args.table} where filename == ? order by filename asc"
             else:
-                out.insert(0, f"select rowid, data from {args.table} order by filename asc")
-                out.insert(1, f"select rowid, image_data from {args.table} order by filename asc")
-        
+                out = f"select rowid, data from {args.table} order by filename asc"
+
             return out
-        
-        if len(self.execquerynocommit(f"pragma table_info({args.table})", returndata=True)) < 1:
+
+        if len(
+                self.execquerynocommit(f"pragma table_info({args.table})",
+                                       returndata=True)) < 1:
             raise sqlite3.OperationalError("No such table")
-        
+
         if not args.out:
-            args.out = pathlib.Path.cwd().joinpath(args.table.replace('_', ' '))
-        
+            args.out = pathlib.Path.cwd().joinpath(args.table.replace(
+                '_', ' '))
+
         outputdir: pathlib.Path = None
         if args.out and pathlib.Path(args.out).exists():
             outputdir = pathlib.Path(args.out).resolve()
         else:
             outputdir = pathlib.Path(args.out)
-        
+
         if outputdir.is_file():
-            raise RuntimeError("The output directory specified points to a file.")
+            raise RuntimeError(
+                "The output directory specified points to a file.")
 
         if not outputdir.exists():
             if args.verbose or args.debug:
                 print("Creating output directory...")
             outputdir.mkdir(parents=True)
-        
+
         if not outputdir.is_absolute():
             outputdir = outputdir.resolve()
         if args.debug or args.verbose:
@@ -470,37 +610,40 @@ class SQLiteArchive:
             print(repr(tuple(self.files)))
         query: list = calcextractquery()
         if args.debug or args.verbose:
-            print(query[0])
-            print(query[1])
+            print(query)
         cursor: sqlite3.Cursor = None
 
-        try:
-            if args.files and len(self.files) > 0:
-                cursor = self.execquerynocommit(query[0], tuple(self.files), raw=True)
-            else:
-                cursor = self.execquerynocommit(query[0], raw=True)
-        except sqlite3.OperationalError:
-            if args.files and len(self.files) > 0:
-                cursor = self.execquerynocommit(query[1], tuple(self.files), raw=True)
-            else:
-                cursor = self.execquerynocommit(query[1], raw=True)
+        if args.files and len(self.files) > 0:
+            cursor = self.execquerynocommit(query, tuple(self.files), raw=True)
+        else:
+            cursor = self.execquerynocommit(query, raw=True)
 
         row: Any = cursor.fetchone()
         while row:
             try:
                 fileinfo: FileInfo = FileInfo()
                 fileinfo.data = bytes(row[1])
-                fileinfo.name = self.execquerynocommit(f"select filename from {args.table} where rowid == ?", values=(str(row[0]),), one=True, decode=True)
-                fileinfo.digest = self.execquerynocommit(f"select hash from {args.table} where rowid == ?", values=(str(row[0]),), one=True, decode=True)
+                fileinfo.name = self.execquerynocommit(
+                    f"select filename from {args.table} where rowid == ?",
+                    values=(str(row[0]), ),
+                    one=True,
+                    decode=True)
+                fileinfo.digest = self.execquerynocommit(
+                    f"select hash from {args.table} where rowid == ?",
+                    values=(str(row[0]), ),
+                    one=True,
+                    decode=True)
 
                 if not fileinfo.verify(fileinfo.digest) and not args.force:
                     if args.debug or args.verbose:
                         print(f"Calculated Digest: {fileinfo.calculatehash()}")
                         print(f"Recorded Hash: {fileinfo.digest}")
-                    raise ValueError("The digest in the database does not match the calculated digest for the data.")
+                    raise ValueError(
+                        "The digest in the database does not match the calculated digest for the data."
+                    )
 
                 outpath: pathlib.Path = outputdir.joinpath(fileinfo.name)
-                
+
                 parent = pathlib.Path(outpath.parent)
                 if not parent.exists():
                     parent.mkdir(parents=True)
@@ -520,7 +663,9 @@ class SQLiteArchive:
             row = cursor.fetchone()  # Normal end of loop
 
     def compact(self):
-        print("* Compacting the database, this might take a while...", end=' ', flush=True)
+        print("* Compacting the database, this might take a while...",
+              end=' ',
+              flush=True)
 
         try:
             self.dbcon.execute("VACUUM;")
