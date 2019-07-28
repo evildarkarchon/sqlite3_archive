@@ -12,3 +12,4 @@
 **/*.gif
 **/*.png
 **/.vscode
+*_ref.py
