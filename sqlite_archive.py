@@ -203,6 +203,13 @@ class FileInfo:
     data: bytes = None
     digest: str = None
 
+    def __post_init__(self):
+        name = pathlib.Path(self.name)
+        if name.resolve().is_file() and not self.data:
+            self.data = name.resolve().read_bytes()
+        if self.data and not self.digest:
+            self.digest = self.calculatehash()
+
     def calculatehash(self):
         if self.data:
             filehash = hashlib.sha512()
