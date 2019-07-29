@@ -204,8 +204,10 @@ class FileInfo:
     digest: str = None
 
     def __post_init__(self):
-        name = pathlib.Path(self.name)
-        if name.resolve().is_file() and not self.data:
+        name = None
+        if self.name:
+            name = pathlib.Path(self.name)
+        if name and name.resolve().is_file() and not self.data:
             self.data = name.resolve().read_bytes()
         if self.data and not self.digest:
             self.digest = self.calculatehash()
@@ -241,7 +243,7 @@ if "table" in args and not args.table:
             raise RuntimeError(
                 "File or Directory specified not found and table was not specified."
             )
-    elif args.mode == 'extract' and args.files:
+    elif args.mode == 'extract' and args.files and not args.table:
         args.table = infertableextract()
         if not args.table:
             raise RuntimeError(
@@ -256,6 +258,10 @@ def globlist(listglob: List):
 
     for a in inlist:
         objtype = type(a)
+        if args.mode == "extract":
+            yield from inlist
+            break
+
         if objtype is str and "*" in a:
             yield from [x for x in map(pathlib.Path, glob.glob(a, recursive=True)) if pathlib.Path(x).is_file()]
         elif objtype is pathlib.Path and a.is_file() or objtype is str and pathlib.Path(a).is_file():
@@ -600,8 +606,8 @@ class SQLiteArchive:
             print(query)
         cursor: sqlite3.Cursor = None
 
-        if args.files and len(self.files) > 0:
-            cursor = self.execquerynocommit(query, tuple(self.files), raw=True)
+        if self.files and len(self.files) > 0 or "?" in query:
+            cursor = self.execquerynocommit(query, self.files, raw=True)
         else:
             cursor = self.execquerynocommit(query, raw=True)
 
