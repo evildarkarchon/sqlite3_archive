@@ -248,48 +248,29 @@ if "table" in args and not args.table:
                 "File or Directory specified not found and table was not specified."
             )
 
+def globlist(listglob: List):
+    inlist: List = [
+        x for x in listglob
+        if pathlib.Path(x).resolve() != pathlib.Path(args.db).resolve()
+    ]
 
-def globlist(listglob: list):
-    outlist: list = []
-
-    def runglobs():
-        return list(map(pathlib.Path, glob.glob(a, recursive=True)))
-
-    for a in listglob:
-        if type(a) is str and "*" in a:
-            outlist.extend(runglobs())
-        elif type(a) is pathlib.Path and a.is_file(
-        ) or type(a) is str and pathlib.Path(a).is_file():
-            if type(a) is str:
-                outlist.append(pathlib.Path(a))
-            elif type(a) is pathlib.Path:
-                outlist.append(a)
+    for a in inlist:
+        objtype = type(a)
+        if objtype is str and "*" in a:
+            yield from [x for x in map(pathlib.Path, glob.glob(a, recursive=True)) if pathlib.Path(x).is_file()]
+        elif objtype is pathlib.Path and a.is_file() or objtype is str and pathlib.Path(a).is_file():
+            if objtype is str:
+                yield pathlib.Path(a)
+            elif objtype is pathlib.Path:
+                yield a
             else:
                 continue
-        elif type(a) is str and "*" not in a and pathlib.Path(a).is_file():
-            outlist.append(pathlib.Path(a))
-        elif type(a) is str and "*" not in a and pathlib.Path(
-                a).is_dir() or type(a) is pathlib.Path and a.is_dir():
-            outlist.extend([x for x in pathlib.Path(a).rglob("*")])
+        elif objtype is str and "*" not in a and pathlib.Path(a).is_file():
+            yield pathlib.Path(a)
+        elif objtype is str and "*" not in a and pathlib.Path(a).is_dir() or objtype is pathlib.Path and a.is_dir():
+            yield from [x for x in pathlib.Path(a).rglob("*") if x.is_file()]
         else:
-            outlist.extend(runglobs())
-
-    outlist.sort()
-
-    for i in outlist:
-        if pathlib.Path(i).resolve() == pathlib.Path(args.db).resolve():
-            if args.verbose or args.debug:
-                print("Removing database file from file list.")
-            try:
-                outlist.remove(i)
-            except ValueError:
-                if args.debug:
-                    raise
-                else:
-                    break
-
-    return outlist
-
+            yield from [x for x in map(pathlib.Path, glob.glob(a, recursive=True)) if pathlib.Path(x).is_file()]
 
 def duplist(dups: dict, dbname: str):
     if len(dups) > 0:
@@ -338,12 +319,11 @@ class SQLiteArchive:
 
         if args.mode in ("add", "extract") and 'files' in args and len(
                 args.files) > 0:
-            listglob: list = globlist(args.files)
+            self.files = list(globlist(args.files))
+            self.files.sort()
             if args.debug or args.verbose:
-                print(listglob, end="\n\n")
-            self.files = [i for i in listglob if i.is_file()]
-            if args.debug or args.verbose:
-                print(self.files)
+                print("File List:")
+                print(self.files, end="\n\n")
         if len(self.files) == 0 and args.mode == 'add':
             raise RuntimeError("No files were found.")
 
