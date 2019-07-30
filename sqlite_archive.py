@@ -370,7 +370,7 @@ class SQLiteArchive:
     def execquerycommit(self, query: str, values: Union[tuple, list] = None):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
-        if values and type(values) == list or type(values) == tuple:
+        if values and type(values) in (list, tuple):
             try:
                 self.dbcon.execute(query, values)
             except Exception:
