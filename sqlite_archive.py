@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Tuple
 files_args: Tuple = ("files", "*")
 lowercase_table_args: Tuple = (
     "--lowercase-table", "store_true", "lower",
-    "Modify the inferred table name to be lowercase (doesn't do anything if --table is specified)"
+    "Modify the inferred table name to be lowercase (has no effect if table name is specified)."
 )
 table_arguments: Tuple = ("--table", "-t", "Name of table to use.", "table")
 
@@ -31,7 +31,7 @@ parser.add_argument("--db",
 parser.add_argument("--debug",
                     dest="debug",
                     action="store_true",
-                    help="Supress any exception skipping and some debug info.")
+                    help="Supress any exception skipping and print some additional info.")
 parser.add_argument(
     "--verbose",
     "-v",
@@ -143,6 +143,12 @@ extract.add_argument(
     help=
     "Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database."
 )
+extract.add_argument(
+    "--infer-pop-file",
+    action="store_true",
+    dest="pop",
+    help="Removes the first entry in the file list when inferring the table name (has no effect when table name is specified)."
+)
 extract.add_argument(files_args[0],
                      nargs=files_args[1],
                      help="Files to be extracted from the SQLite Database.")
@@ -167,31 +173,29 @@ if "table" in args and args.table:
     args.table = cleantablename(args.table)
 
 
-def infertableadd():
+def infertable():
     base: pathlib.Path = pathlib.Path(args.files[0]).resolve()
 
     if not base.exists():
         return None
 
     f: str = None
-    if base.is_file():
+    if args.mode == "add" and base.is_file():
         f = cleantablename(base.parent.name, args.lower)
-    elif base.is_dir():
+    elif args.mode == "add" and base.is_dir():
         f = cleantablename(base.name, args.lower)
+    
+    if args.mode == "extract":
+        if args.files[0]:
+            if args.files[0] and not args.out:
+                f = cleantablename(args.files[0])
+                if args.pop:
+                    args.files.pop(0)
+            elif args.out and not args.files[0]:
+                f = cleantablename(pathlib.Path(args.out).name)
+
 
     if f:
-        return f
-    else:
-        return None
-
-
-def infertableextract():
-    if args.files[0]:
-        f = cleantablename(args.files[0])
-        args.files.pop(0)
-        return f
-    elif args.out:
-        f = cleantablename(pathlib.Path(args.out).name, args.lower)
         return f
     else:
         return None
@@ -237,14 +241,8 @@ class FileInfo:
 
 
 if "table" in args and not args.table:
-    if args.mode == 'add' and args.files:
-        args.table = infertableadd()
-        if not args.table:
-            raise RuntimeError(
-                "File or Directory specified not found and table was not specified."
-            )
-    elif args.mode == 'extract' and args.files and not args.table:
-        args.table = infertableextract()
+    if args.mode in ('add', 'extract') and args.files:
+        args.table = infertable()
         if not args.table:
             raise RuntimeError(
                 "File or Directory specified not found and table was not specified."
@@ -430,49 +428,52 @@ class SQLiteArchive:
 
     def calcname(self, inpath: pathlib.Path):
         parents = sorted(inpath.parents)
+        parentslen = len(parents)
         if args.verbose or args.debug:
             print(parents)
 
         def oldbehavior():
             if args.verbose or args.debug:
                 print("Using old name calculation behavior")
-            if len(parents) > 2:
+            if parentslen > 2:
                 return str(inpath.relative_to(inpath.parent.parent))
             else:
                 return str(inpath.relative_to(inpath.parent))
 
         try:
-            if inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
+            if parentslen == 1:
                 return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
-            elif not inpath.is_absolute():
+            elif inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
+                return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
+            elif not inpath.is_absolute() and parentslen > 1:
                 return str(inpath.relative_to(parents[1]))
             else:
                 return oldbehavior()
         except (ValueError, IndexError):
-            return oldbehavior()
+            try:
+                return oldbehavior()
+            except Exception:
+                raise
 
     def add(self):
         def insert():
-            print(f"* Adding {fileinfo.name} to {args.table}...",
-                  end=' ',
-                  flush=True)
             query = f"insert into {args.table} (filename, data, hash) values (?, ?, ?)"
             values = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
+                print(f"* Queueing {fileinfo.name} for addition to {args.table}", end=' ', flush=True)
                 self.execquerynocommit(query, values)
             else:
+                print(f"* Adding {fileinfo.name} to {args.table}...", end=' ', flush=True)
                 self.execquerycommit(query, values)
 
         def replace():
-            print(
-                f"* Replacing {fileinfo.name}'s data in {args.table} with specified file...",
-                end=' ',
-                flush=True)
             query = f"replace into {args.table} (filename, data, hash) values (?, ?, ?)"
             values = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
+                print(f"* Queueing {fileinfo.name}'s data for replacement in {args.table} with specified file's data...", end=' ', flush=True)
                 self.execquerynocommit(query, values)
             else:
+                print(f"* Replacing {fileinfo.name}'s data in {args.table} with specified file's data...", end=' ', flush=True)
                 self.execquerycommit(query, values)
 
         self.schema()
