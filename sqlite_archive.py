@@ -249,19 +249,14 @@ if "table" in args and not args.table:
             )
 
 def globlist(listglob: List):
-    inlist: List = [
-        x for x in listglob
-        if pathlib.Path(x).resolve() != pathlib.Path(args.db).resolve()
-    ]
-
-    for a in inlist:
+    for a in listglob:
         objtype = type(a)
         if args.mode == "extract":
-            yield from inlist
+            yield from listglob
             break
 
         if objtype is str and "*" in a:
-            yield from [x for x in map(pathlib.Path, glob.glob(a, recursive=True)) if pathlib.Path(x).is_file()]
+            yield from map(pathlib.Path, glob.glob(a, recursive=True))
         elif objtype is pathlib.Path and a.is_file() or objtype is str and pathlib.Path(a).is_file():
             if objtype is str:
                 yield pathlib.Path(a)
@@ -272,9 +267,9 @@ def globlist(listglob: List):
         elif objtype is str and "*" not in a and pathlib.Path(a).is_file():
             yield pathlib.Path(a)
         elif objtype is str and "*" not in a and pathlib.Path(a).is_dir() or objtype is pathlib.Path and a.is_dir():
-            yield from [x for x in pathlib.Path(a).rglob("*") if x.is_file()]
+            yield from pathlib.Path(a).rglob("*")
         else:
-            yield from [x for x in map(pathlib.Path, glob.glob(a, recursive=True)) if pathlib.Path(x).is_file()]
+            yield from map(pathlib.Path, glob.glob(a, recursive=True))
 
 def duplist(dups: dict, dbname: str):
     if len(dups) > 0:
@@ -323,7 +318,7 @@ class SQLiteArchive:
 
         if args.mode in ("add", "extract") and 'files' in args and len(
                 args.files) > 0:
-            self.files = list(globlist(args.files))
+            self.files = [x for x in globlist(args.files) if pathlib.Path(x).resolve() != pathlib.Path(args.db).resolve() and x.is_file()]
             self.files.sort()
             if args.debug or args.verbose:
                 print("File List:")
@@ -460,7 +455,7 @@ class SQLiteArchive:
             query = f"insert into {args.table} (filename, data, hash) values (?, ?, ?)"
             values = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if args.atomic:
-                print(f"* Queueing {fileinfo.name} for addition to {args.table}", end=' ', flush=True)
+                print(f"* Queueing {fileinfo.name} for addition to {args.table}...", end=' ', flush=True)
                 self.execquerynocommit(query, values)
             else:
                 print(f"* Adding {fileinfo.name} to {args.table}...", end=' ', flush=True)
