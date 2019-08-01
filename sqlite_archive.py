@@ -36,15 +36,13 @@ parser.add_argument(
     "--verbose",
     "-v",
     action="store_true",
-    help=
-    "Print some more information without changing the exception raising policy."
+    help="Print some more information without changing the exception raising policy."
 )
 
 drop: argparse.ArgumentParser = subparsers.add_parser(
     'drop',
     aliases=['drop-table', 'drop_table'],
-    help=
-    "Drop the specified table. NOTE: this will run VACUUM when done, by default."
+    help="Drop the specified table. NOTE: this will run VACUUM when done, by default."
 )
 drop.add_argument("--no-drop-vacuum",
                   action="store_false",
@@ -62,8 +60,7 @@ add.add_argument(
     "--replace",
     "-r",
     action="store_true",
-    help=
-    "Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation."
+    help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation."
 )
 add.add_argument("--no-replace-vacuum",
                  action="store_false",
@@ -73,15 +70,13 @@ add.add_argument(
     "--dups-file",
     type=str,
     dest="dups_file",
-    help=
-    "Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.",
+    help="Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.",
     default=f"{pathlib.Path.cwd()}/duplicates.json")
 add.add_argument(
     "--no-dups",
     action="store_false",
     dest="dups",
-    help=
-    "Disables saving the duplicate list as a json file or reading an existing one from an existing file."
+    help="Disables saving the duplicate list as a json file or reading an existing one from an existing file."
 )
 add.add_argument("--hide-dups",
                  dest="hidedups",
@@ -106,8 +101,7 @@ add.add_argument(files_args[0],
 
 compact = subparsers.add_parser(
     "compact",
-    help=
-    "Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)"
+    help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)"
 )
 
 create = subparsers.add_parser(
@@ -128,8 +122,7 @@ extract.add_argument(
     "-o",
     dest="out",
     type=str,
-    help=
-    "Directory to output files to. Defaults to a directory named after the table in the current directory."
+    help="Directory to output files to. Defaults to a directory named after the table in the current directory."
 )
 extract.add_argument(lowercase_table_args[0],
                      action=lowercase_table_args[1],
@@ -140,8 +133,7 @@ extract.add_argument(
     "-f",
     dest="force",
     action="store_true",
-    help=
-    "Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database."
+    help="Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database."
 )
 extract.add_argument(
     "--infer-pop-file",
@@ -184,7 +176,7 @@ def infertable():
         f = cleantablename(base.parent.name, args.lower)
     elif args.mode == "add" and base.is_dir():
         f = cleantablename(base.name, args.lower)
-    
+
     if args.mode == "extract":
         if args.files[0]:
             if args.files[0] and not args.out:
@@ -193,7 +185,6 @@ def infertable():
                     args.files.pop(0)
             elif args.out and not args.files[0]:
                 f = cleantablename(pathlib.Path(args.out).name)
-
 
     if f:
         return f
@@ -248,6 +239,7 @@ if "table" in args and not args.table:
                 "File or Directory specified not found and table was not specified."
             )
 
+
 def globlist(listglob: List):
     for a in listglob:
         objtype = type(a)
@@ -270,6 +262,7 @@ def globlist(listglob: List):
             yield from pathlib.Path(a).rglob("*")
         else:
             yield from map(pathlib.Path, glob.glob(a, recursive=True))
+
 
 def duplist(dups: dict, dbname: str):
     if len(dups) > 0:
