@@ -287,8 +287,8 @@ def duplist(dups: dict, dbname: str):
             elif not args.dupscurrent:
                 print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
         if args.dups_file and dupsexist:
-            with open(args.dups_file, 'w') as dupsjson:
-                json.dump(dups, dupsjson, indent=4)
+            dupspath = pathlib.Path(args.dups_file)
+            dupspath.write_text(json.dumps(dups, indent=4))
 
 
 class SQLiteArchive:
@@ -473,9 +473,9 @@ class SQLiteArchive:
 
         self.schema()
         dups: dict = {}
-        if pathlib.Path(args.dups_file).is_file() and args.dups:
-            with open(args.dups_file) as dupsjson:
-                dups = json.load(dupsjson)
+        dupspath = pathlib.Path(args.dups_file)
+        if dupspath.is_file() and args.dups:
+            dups = json.loads(dupspath.read_text())
         replaced: int = 0
 
         dbname: str = self.calcname(self.db)
