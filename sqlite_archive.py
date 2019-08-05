@@ -489,7 +489,7 @@ class SQLiteArchive:
                             self.execquerynocommit(
                                 f"select count(distinct filename) from {args.table} where filename = ?",
                                 values=(fileinfo.name, ),
-                                one=True))
+                                one=True)[0])
                         if args.debug or args.verbose:
                             print(exists)
                     fileinfo.data = bytes(i.read_bytes())
@@ -503,20 +503,33 @@ class SQLiteArchive:
 
                 query = self.execquerynocommit(
                     f"select filename from {args.table} where hash == ?",
-                    (fileinfo.digest, ), one=True)
-                if query and query["filename"] and len(query["filename"]) >= 1:
+                    (fileinfo.digest, ))[0][0]
+                querytype = type(query)
+                querylen = len(query)
+                if query and querylen >= 1:
                     print("duplicate")
+                if not type(query) == str and querylen >= 1:
+                    for i in query:
+                        i = i["filename"]
+                        if args.verbose or args.debug:
+                            print(i)
+                        if len(i) >= 1:
+                            dups[dbname][str(fullpath)] = str(i)
+                elif type(query) == str and querylen >= 1:
+                    dups[dbname][str(fullpath)] = str(query)
 
-                if type(query) is list and len(query) >= 1:
-                    if query is not None:
-                        dups[dbname][str(fullpath)] = query["filename"]
-
+                def removefromdict():
+                    try:
+                        dups[dbname].pop(z)
+                    except KeyError:
+                        pass
                 for z in tuple(dups[dbname].keys()):
-                    if query["filename"] in z:
-                        try:
-                            dups[dbname].pop(z)
-                        except KeyError:
-                            pass
+                    if not querytype == str:
+                        _query = str(query)
+                        if _query in z:
+                            removefromdict()
+                    elif querytype == str and query in z:
+                        removefromdict()
 
                 if args.debug:
                     raise
