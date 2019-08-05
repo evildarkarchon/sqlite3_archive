@@ -506,6 +506,13 @@ class SQLiteArchive:
                     (fileinfo.digest, ))[0][0]
                 querytype = type(query)
                 querylen = len(query)
+                if args.debug or args.verbose:
+                    print(querytype)
+                    print(querylen)
+                    if querytype == sqlite3.Row:
+                        print(tuple(query))
+                    else:
+                        print(query)
                 if query and querylen >= 1:
                     print("duplicate")
                 if not type(query) == str and querylen >= 1:
@@ -517,6 +524,8 @@ class SQLiteArchive:
                             dups[dbname][str(fullpath)] = str(i)
                 elif type(query) == str and querylen >= 1:
                     dups[dbname][str(fullpath)] = str(query)
+                    if args.debug or args.verbose:
+                        print(query)
 
                 def removefromdict():
                     try:
