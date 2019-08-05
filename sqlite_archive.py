@@ -180,7 +180,7 @@ def infertable():
     if args.mode == "extract":
         if args.files[0]:
             if args.files[0] and not args.out:
-                f = cleantablename(args.files[0])
+                f = cleantablename(pathlib.Path(args.files[0]).stem)
                 if args.pop:
                     args.files.pop(0)
             elif args.out and not args.files[0]:
@@ -304,6 +304,7 @@ class SQLiteArchive:
             raise RuntimeError(
                 "Extract mode and Compact mode require an existing database.")
 
+        self.dbcon.row_factory = sqlite3.Row
         if args.mode == 'extract':
             self.dbcon.text_factory = bytes
         atexit.register(self.dbcon.close)
@@ -502,16 +503,16 @@ class SQLiteArchive:
 
                 query = self.execquerynocommit(
                     f"select filename from {args.table} where hash == ?",
-                    (fileinfo.digest, ))
-                if query and query[0][0] and len(query[0][0]) >= 1:
+                    (fileinfo.digest, ), one=True)
+                if query and query["filename"] and len(query["filename"]) >= 1:
                     print("duplicate")
 
                 if type(query) is list and len(query) >= 1:
-                    if query[0] is not None:
-                        dups[dbname][str(fullpath)] = query[0]
+                    if query is not None:
+                        dups[dbname][str(fullpath)] = query["filename"]
 
-                for z in list(dups[dbname].keys()):
-                    if query[0][0] in z:
+                for z in tuple(dups[dbname].keys()):
+                    if query["filename"] in z:
                         try:
                             dups[dbname].pop(z)
                         except KeyError:
@@ -562,8 +563,8 @@ class SQLiteArchive:
             return out
 
         if len(
-                self.execquerynocommit(f"pragma table_info({args.table})",
-                                       returndata=True)) < 1:
+                tuple(self.execquerynocommit(f"pragma table_info({args.table})",
+                                       returndata=True))) < 1:
             raise sqlite3.OperationalError("No such table")
 
         if not args.out:
@@ -604,15 +605,15 @@ class SQLiteArchive:
         while row:
             try:
                 fileinfo: FileInfo = FileInfo()
-                fileinfo.data = bytes(row[1])
+                fileinfo.data = bytes(row["data"])
                 fileinfo.name = self.execquerynocommit(
                     f"select filename from {args.table} where rowid == ?",
-                    values=(str(row[0]), ),
+                    values=(str(row["rowid"]), ),
                     one=True,
                     decode=True)
                 fileinfo.digest = self.execquerynocommit(
                     f"select hash from {args.table} where rowid == ?",
-                    values=(str(row[0]), ),
+                    values=(str(row["rowid"]), ),
                     one=True,
                     decode=True)
 
