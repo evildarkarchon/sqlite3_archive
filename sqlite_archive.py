@@ -9,6 +9,7 @@ import json
 import pathlib
 import sqlite3
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
@@ -503,7 +504,15 @@ class SQLiteArchive:
 
                 query = self.execquerynocommit(
                     f"select filename from {args.table} where hash == ?",
-                    (fileinfo.digest, ))[0][0]
+                    (fileinfo.digest, )) # [0][0]
+                try:
+                    while isinstance(query, Iterable) and len(query) == 1:
+                        if type(query[0]) in (str, int, float, sqlite3.Row):
+                            break
+                        else:
+                            query = query[0]
+                except TypeError:
+                    pass
                 querytype = type(query)
                 querylen = len(query)
                 if args.debug or args.verbose:
