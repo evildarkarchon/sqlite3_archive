@@ -39,6 +39,9 @@ parser.add_argument(
     action="store_true",
     help="Print some more information without changing the exception raising policy."
 )
+walargs = parser.add_mutually_exclusive_group()
+walargs.add_argument("--wal", "-w", action="store_true", dest="wal", help="Use Write-Ahead Logging instead of rollback journal.")
+walargs.add_argument("--rollback", "-r", action="store_true", dest="rollback", help="Switch back to rollback journal instead of Write-Ahead Logging.")
 
 drop: argparse.ArgumentParser = subparsers.add_parser(
     'drop',
@@ -290,16 +293,35 @@ class SQLiteArchive:
         self.db: pathlib.Path = pathlib.Path(args.db).resolve()
         self.files: list = []
 
+        def setwal():
+            try:
+                self.dbcon.execute("PRAGMA journal_mode=WAL;")
+            except sqlite3.DatabaseError:
+                pass
+
+        def setdel():
+            try:
+                self.dbcon.execute("PRAGMA journal_mode=delete;")
+            except sqlite3.DatabaseError:
+                pass
         if self.db.is_file():
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
             if not (self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
                     ) == 1 and args.mode in ("add", "create"):
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
+                if "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
+                    setwal()
+                if "rollback" in args and args.args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
+                    setdel()
                 self.dbcon.execute("VACUUM;")
         elif not self.db.is_file() and args.mode in ("add", "create"):
             self.db.touch()
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
             self.dbcon.execute("PRAGMA auto_vacuum = 1;")
+            if "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
+                setwal()
+            if "rollback" in args and args.args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
+                setdel()
             self.dbcon.execute("VACUUM;")
         else:
             raise RuntimeError(
@@ -504,7 +526,7 @@ class SQLiteArchive:
 
                 query = self.execquerynocommit(
                     f"select filename from {args.table} where hash == ?",
-                    (fileinfo.digest, )) # [0][0]
+                    (fileinfo.digest, ))  # [0][0]
                 try:
                     while isinstance(query, Iterable) and len(query) == 1:
                         if type(query[0]) in (str, int, float, sqlite3.Row):
@@ -595,7 +617,7 @@ class SQLiteArchive:
 
         if len(
                 tuple(self.execquerynocommit(f"pragma table_info({args.table})",
-                                       returndata=True))) < 1:
+                                             returndata=True))) < 1:
             raise sqlite3.OperationalError("No such table")
 
         if not args.out:
