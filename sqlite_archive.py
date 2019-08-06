@@ -311,7 +311,7 @@ class SQLiteArchive:
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
                 if "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
                     setwal()
-                if "rollback" in args and args.args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
+                if "rollback" in args and args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
                     setdel()
                 self.dbcon.execute("VACUUM;")
         elif not self.db.is_file() and args.mode in ("add", "create"):
@@ -320,7 +320,7 @@ class SQLiteArchive:
             self.dbcon.execute("PRAGMA auto_vacuum = 1;")
             if "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
                 setwal()
-            if "rollback" in args and args.args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
+            if "rollback" in args and args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
                 setdel()
             self.dbcon.execute("VACUUM;")
         else:
