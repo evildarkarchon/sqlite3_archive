@@ -307,28 +307,33 @@ class SQLiteArchive:
                 print(f"current autovacuum mode: {avstate}")
             if args.autovacuum in ("enable", "enabled", "full", 1, "1") and not avstate == 1:
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
+                return True
                 if args.verbose or args.debug:
                     print("full auto_vacuum")
             elif args.autovacuum in ("intermediate", 2, "2") and not avstate == 2:
                 self.dbcon.execute("PRAGMA auto_vacuum = 2;")
+                return True
                 if args.verbose or args.debug:
                     print("intermediate auto_vacuum")
             elif args.autovacuum in ("disable", "disabled", 0, "0") and not avstate == 0:
                 self.dbcon.execute("PRAGMA auto_vacuum = 0;")
+                return True
                 if args.verbose or args.debug:
                     print("auto_vacuum disabled")
             else:
                 if not avstate == 1:
                     self.dbcon.execute("PRAGMA auto_vacuum = 1;")
+                    return True
+                else:
+                    return False
+            return None
 
         addorcreate = args.mode in ("add", "create")
         if self.db.is_file():
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
             needsvacuum = False
             if addorcreate and "autovacuum" in args and args.autovacuum:
-                setav()
-                if not needsvacuum:
-                    needsvacuum = True
+                needsvacuum = setav()
 
             if addorcreate and "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
                 setwal()
@@ -628,8 +633,7 @@ class SQLiteArchive:
             raise sqlite3.OperationalError("No such table")
 
         if not args.out:
-            args.out = pathlib.Path.cwd().joinpath(args.table.replace(
-                '_', ' '))
+            args.out = pathlib.Path.cwd().joinpath(args.table.replace('_', ' '))
 
         outputdir: pathlib.Path = None
         if args.out and pathlib.Path(args.out).exists():
@@ -638,8 +642,7 @@ class SQLiteArchive:
             outputdir = pathlib.Path(args.out)
 
         if outputdir.is_file():
-            raise RuntimeError(
-                "The output directory specified points to a file.")
+            raise RuntimeError("The output directory specified points to a file.")
 
         if not outputdir.exists():
             if args.verbose or args.debug:
@@ -681,9 +684,7 @@ class SQLiteArchive:
                     if args.debug or args.verbose:
                         print(f"Calculated Digest: {fileinfo.calculatehash()}")
                         print(f"Recorded Hash: {fileinfo.digest}")
-                    raise ValueError(
-                        "The digest in the database does not match the calculated digest for the data."
-                    )
+                    raise ValueError("The digest in the database does not match the calculated digest for the data.")
 
                 outpath: pathlib.Path = outputdir.joinpath(fileinfo.name)
 
