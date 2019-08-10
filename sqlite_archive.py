@@ -19,7 +19,7 @@ lowercase_table_args: Dict = {"long": "--lowercase-table", "action": "store_true
 table_arguments: Dict = {"long": "--table", "short": "-t", "dest": "table", "help": "Name of table to use."}
 autovacuum_args: Dict = {"long": "--autovacuum-mode", "short": "-a", "nargs": 1, "dest": "autovacuum",
                          "choices_av1": [1, 'enabled', 'enable', 'full'],
-                         "choices_av2": [2, 'intermediate'],
+                         "choices_av2": [2, 'incremental'],
                          "choices_av0": [0, 'disabled', 'disable'],
                          "default": "full",
                          "help": "Sets the automatic vacuum mode.", "default": "full"}
@@ -337,7 +337,7 @@ class SQLiteArchive:
                     return False
                 if args.verbose or args.debug:
                     print("full auto_vacuum")
-            elif args.autovacuum and args.autovacuum in ("intermediate", 2, "2") and not avstate == 2:
+            elif args.autovacuum and args.autovacuum in ("incremental", 2, "2") and not avstate == 2:
                 self.dbcon.execute("PRAGMA auto_vacuum = 2;")
                 avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
                 if not args.mode == "compact" and avstate2 == 2:
@@ -347,7 +347,7 @@ class SQLiteArchive:
                         print(notchanged)
                     return False
                 if args.verbose or args.debug:
-                    print("intermediate auto_vacuum")
+                    print("incremental auto_vacuum")
             elif args.autovacuum and args.autovacuum in ("disable", "disabled", 0, "0") and not avstate == 0:
                 self.dbcon.execute("PRAGMA auto_vacuum = 0;")
                 avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
@@ -379,7 +379,7 @@ class SQLiteArchive:
             needsvacuum = False
             if addorcreate and "autovacuum" in args and args.autovacuum:
                 needsvacuum = setav()
-            
+
             journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
             wal = ("WAL", "wal", "Wal", "WAl")
             rollback = ("delete", "Delete", "DELETE")
