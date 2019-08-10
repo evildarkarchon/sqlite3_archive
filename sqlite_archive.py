@@ -18,13 +18,18 @@ lowercase_table_args: Dict = {"long": "--lowercase-table", "action": "store_true
                               "help": "Modify the inferred table name to be lowercase (has no effect if table name is specified)."}
 table_arguments: Dict = {"long": "--table", "short": "-t", "dest": "table", "help": "Name of table to use."}
 autovacuum_args: Dict = {"long": "--autovacuum-mode", "short": "-a", "nargs": 1, "dest": "autovacuum",
-                         "choices": [0, 1, 2, 'disabled', 'disable', 'enabled', 'enable', 'full', 'intermediate'],
+                         "choices_av1": [1, 'enabled', 'enable', 'full'],
+                         "choices_av2": [2, 'intermediate'],
+                         "choices_av0": [0, 'disabled', 'disable'],
                          "default": "full",
                          "help": "Sets the automatic vacuum mode.", "default": "full"}
+autovacuum_args["choices"] = []
+autovacuum_args["choices"].extend(autovacuum_args["choices_av1"])
+autovacuum_args["choices"].extend(autovacuum_args["choices_av2"])
+autovacuum_args["choices"].extend(autovacuum_args["choices_av0"])
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(
     description="Imports or Exports files from an sqlite3 database.")
-subparsers: argparse.ArgumentParser = parser.add_subparsers(dest="mode")
 parser.add_argument("--db",
                     "-d",
                     dest="db",
@@ -43,6 +48,8 @@ parser.add_argument("--verbose",
 walargs = parser.add_mutually_exclusive_group()
 walargs.add_argument("--wal", "-w", action="store_true", dest="wal", help="Use Write-Ahead Logging instead of rollback journal.")
 walargs.add_argument("--rollback", "-r", action="store_true", dest="rollback", help="Switch back to rollback journal if Write-Ahead Logging is active.")
+
+subparsers: argparse.ArgumentParser = parser.add_subparsers(dest="mode")
 
 drop: argparse.ArgumentParser = subparsers.add_parser('drop',
                                                       aliases=['drop-table', 'drop_table'],
@@ -303,27 +310,53 @@ class SQLiteArchive:
 
         def setav():
             avstate = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+            avstate2 = None
+            notchanged = "autovacuum mode not changed"
             if args.verbose or args.debug:
                 print(f"current autovacuum mode: {avstate}")
-            if args.autovacuum in ("enable", "enabled", "full", 1, "1") and not avstate == 1:
+            if args.autovacuum and args.autovacuum in ("enable", "enabled", "full", 1, "1") and not avstate == 1:
                 self.dbcon.execute("PRAGMA auto_vacuum = 1;")
-                return True
+                avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                if not args.mode == "compact" and avstate2 == 1:
+                    return True
+                else:
+                    if avstate2 != 1 and avstate != 1:
+                        print(notchanged)
+                    return False
                 if args.verbose or args.debug:
                     print("full auto_vacuum")
-            elif args.autovacuum in ("intermediate", 2, "2") and not avstate == 2:
+            elif args.autovacuum and args.autovacuum in ("intermediate", 2, "2") and not avstate == 2:
                 self.dbcon.execute("PRAGMA auto_vacuum = 2;")
-                return True
+                avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                if not args.mode == "compact" and avstate2 == 2:
+                    return True
+                else:
+                    if avstate2 != 2 and avstate != 2:
+                        print(notchanged)
+                    return False
                 if args.verbose or args.debug:
                     print("intermediate auto_vacuum")
-            elif args.autovacuum in ("disable", "disabled", 0, "0") and not avstate == 0:
+            elif args.autovacuum and args.autovacuum in ("disable", "disabled", 0, "0") and not avstate == 0:
                 self.dbcon.execute("PRAGMA auto_vacuum = 0;")
-                return True
+                avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                if not args.mode == "compact" and avstate2 == 0:
+                    return True
+                else:
+                    if avstate2 != 0 and avstate != 0:
+                        print(notchanged)
+                    return False
                 if args.verbose or args.debug:
                     print("auto_vacuum disabled")
             else:
                 if not avstate == 1:
                     self.dbcon.execute("PRAGMA auto_vacuum = 1;")
-                    return True
+                    avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                    if not args.mode == "compact" and avstate2 == 1:
+                        return True
+                    else:
+                        if avstate2 != 1 and avstate != 1:
+                            print(notchanged)
+                        return False
                 else:
                     return False
             return None
@@ -337,11 +370,11 @@ class SQLiteArchive:
 
             if addorcreate and "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
                 setwal()
-                if not needsvacuum:
+                if not needsvacuum and not args.mode == "compact":
                     needsvacuum = True
             if addorcreate and "rollback" in args and args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
                 setdel()
-                if not needsvacuum:
+                if not needsvacuum and not args.mode == "compact":
                     needsvacuum = True
 
             if needsvacuum:
