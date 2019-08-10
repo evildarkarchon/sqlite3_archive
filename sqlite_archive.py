@@ -299,14 +299,26 @@ class SQLiteArchive:
         def setwal():
             try:
                 self.dbcon.execute("PRAGMA journal_mode=WAL;")
+                new_journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
+                if addorcreate and new_journal_mode != journal_mode:
+                    return True
+                else:
+                    return False
             except sqlite3.DatabaseError:
-                pass
+                return False
+            return None
 
         def setdel():
             try:
                 self.dbcon.execute("PRAGMA journal_mode=delete;")
+                new_journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
+                if addorcreate and new_journal_mode != journal_mode:
+                    return True
+                else:
+                    return False
             except sqlite3.DatabaseError:
-                pass
+                return False
+            return None
 
         def setav():
             avstate = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
@@ -367,26 +379,27 @@ class SQLiteArchive:
             needsvacuum = False
             if addorcreate and "autovacuum" in args and args.autovacuum:
                 needsvacuum = setav()
+            
+            journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
+            wal = ("WAL", "wal", "Wal", "WAl")
+            rollback = ("delete", "Delete", "DELETE")
 
-            if addorcreate and "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
-                setwal()
-                if not needsvacuum and not args.mode == "compact":
-                    needsvacuum = True
-            if addorcreate and "rollback" in args and args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
-                setdel()
-                if not needsvacuum and not args.mode == "compact":
-                    needsvacuum = True
+            if addorcreate and "wal" in args and args.wal and journal_mode not in wal:
+                needsvacuum = setwal()
+            elif addorcreate and "rollback" in args and args.rollback and journal_mode not in rollback:
+                needsvacuum = setdel()
 
             if needsvacuum:
                 self.dbcon.execute("VACUUM;")
         elif not self.db.is_file() and addorcreate:
             self.db.touch()
             self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
+            journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
             if "autovacuum" in args and args.autovacuum:
                 setav()
-            if "wal" in args and args.wal and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("WAL", "wal", "Wal", "WAl"):
+            if "wal" in args and args.wal and journal_mode not in ("WAL", "wal", "Wal", "WAl"):
                 setwal()
-            if "rollback" in args and args.rollback and self.dbcon.execute("PRAGMA journal_mode").fetchone()[0] not in ("delete", "Delete", "DELETE"):
+            elif "rollback" in args and args.rollback and journal_mode not in ("delete", "Delete", "DELETE"):
                 setdel()
             self.dbcon.execute("VACUUM;")
         else:
