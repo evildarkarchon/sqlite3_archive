@@ -332,7 +332,7 @@ class SQLiteArchive:
                 if not args.mode == "compact" and avstate2 == 1:
                     return True
                 else:
-                    if avstate2 != 1 and avstate != 1:
+                    if avstate2 != 1 and avstate != 1 and args.verbose or args.debug:
                         print(notchanged)
                     return False
                 if args.verbose or args.debug:
@@ -343,7 +343,7 @@ class SQLiteArchive:
                 if not args.mode == "compact" and avstate2 == 2:
                     return True
                 else:
-                    if avstate2 != 2 and avstate != 2:
+                    if avstate2 != 2 and avstate != 2 and args.verbose or args.debug:
                         print(notchanged)
                     return False
                 if args.verbose or args.debug:
@@ -354,7 +354,7 @@ class SQLiteArchive:
                 if not args.mode == "compact" and avstate2 == 0:
                     return True
                 else:
-                    if avstate2 != 0 and avstate != 0:
+                    if avstate2 != 0 and avstate != 0 and args.verbose or args.debug:
                         print(notchanged)
                     return False
                 if args.verbose or args.debug:
@@ -367,7 +367,7 @@ class SQLiteArchive:
                     if not args.mode == "compact" and avstate2 == 1:
                         return True
                     else:
-                        if avstate2 != 1 and avstate != 1:
+                        if avstate2 != 1 and avstate != 1 and args.verbose or args.debug:
                             print(notchanged)
                         return False
                 else:
