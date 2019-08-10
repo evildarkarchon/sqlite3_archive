@@ -360,6 +360,7 @@ class SQLiteArchive:
                 if args.verbose or args.debug:
                     print("auto_vacuum disabled")
             else:
+                print("Somehow, argparse messed up and the autovacuum mode argument is not one of the valid choices, defaulting to full autovacuum mode.")
                 if not avstate == 1:
                     self.dbcon.execute("PRAGMA auto_vacuum = 1;")
                     avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
