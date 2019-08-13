@@ -12,3 +12,4 @@ test*
 **/*.png
 **/.vscode
 *_ref.py
+!bandit_baseline.json
