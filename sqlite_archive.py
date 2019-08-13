@@ -11,7 +11,7 @@ import sqlite3
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 files_args: Tuple = ("files", "*")
 lowercase_table_args: Dict = {"long": "--lowercase-table", "action": "store_true", "dest": "lower",
@@ -49,7 +49,7 @@ walargs = parser.add_mutually_exclusive_group()
 walargs.add_argument("--wal", "-w", action="store_true", dest="wal", help="Use Write-Ahead Logging instead of rollback journal.")
 walargs.add_argument("--rollback", "-r", action="store_true", dest="rollback", help="Switch back to rollback journal if Write-Ahead Logging is active.")
 
-subparsers: argparse.ArgumentParser = parser.add_subparsers(dest="mode")
+subparsers: argparse._SubParsersAction = parser.add_subparsers(dest="mode")
 
 drop: argparse.ArgumentParser = subparsers.add_parser('drop',
                                                       aliases=['drop-table', 'drop_table'],
@@ -201,9 +201,9 @@ def infertable():
 
 @dataclass
 class FileInfo:
-    name: str = None
-    data: bytes = None
-    digest: str = None
+    name: str = ''
+    data: bytes = b''
+    digest: str = ''
 
     def __post_init__(self):
         name = None
@@ -296,7 +296,7 @@ class SQLiteArchive:
         self.db: pathlib.Path = pathlib.Path(args.db).resolve()
         self.files: list = []
 
-        def setwal():
+        def setwal() -> bool:
             try:
                 self.dbcon.execute("PRAGMA journal_mode=WAL;")
                 new_journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
@@ -308,7 +308,7 @@ class SQLiteArchive:
                 return False
             return None
 
-        def setdel():
+        def setdel() -> bool:
             try:
                 self.dbcon.execute("PRAGMA journal_mode=delete;")
                 new_journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
@@ -320,7 +320,7 @@ class SQLiteArchive:
                 return False
             return None
 
-        def setav():
+        def setav() -> bool:
             avstate = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
             avstate2 = None
             notchanged = "autovacuum mode not changed"
@@ -428,7 +428,7 @@ class SQLiteArchive:
                           one: bool = False,
                           raw: bool = False,
                           returndata=False,
-                          decode: bool = False):
+                          decode: bool = False) -> Union[List[Any], sqlite3.Cursor, None]:
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         output: Any = None
@@ -517,7 +517,7 @@ class SQLiteArchive:
         createindex = f'CREATE UNIQUE INDEX IF NOT EXISTS {args.table}_index ON {args.table} ( "filename", "hash" );'
         self.execquerycommit(createindex)
 
-    def calcname(self, inpath: pathlib.Path):
+    def calcname(self, inpath: pathlib.Path) -> str:
         parents = sorted(inpath.parents)
         parentslen = len(parents)
         if args.verbose or args.debug:
@@ -589,9 +589,7 @@ class SQLiteArchive:
                     if args.replace:
                         exists = int(
                             self.execquerynocommit(
-                                f"select count(distinct filename) from {args.table} where filename = ?",
-                                values=(fileinfo.name, ),
-                                one=True)[0])
+                                f"select count(distinct filename) from {args.table} where filename = ?", values=(fileinfo.name, ), one=True)[0])
                         if args.debug or args.verbose:
                             print(exists)
                     fileinfo.data = bytes(i.read_bytes())
@@ -602,8 +600,7 @@ class SQLiteArchive:
                     else:
                         insert()
             except sqlite3.IntegrityError:
-                query = self.execquerynocommit(f"select filename from {args.table} where hash == ?",
-                                               (fileinfo.digest, ))[0][0]
+                query = self.execquerynocommit(f"select filename from {args.table} where hash == ?", (fileinfo.digest, ))[0][0]
                 querytype = type(query)
                 querylen = len(query)
                 if args.debug or args.verbose:
@@ -717,15 +714,9 @@ class SQLiteArchive:
                 fileinfo: FileInfo = FileInfo()
                 fileinfo.data = bytes(row["data"])
                 fileinfo.name = self.execquerynocommit(
-                    f"select filename from {args.table} where rowid == ?",
-                    values=(str(row["rowid"]), ),
-                    one=True,
-                    decode=True)
+                    f"select filename from {args.table} where rowid == ?", values=(str(row["rowid"]), ), one=True, decode=True)
                 fileinfo.digest = self.execquerynocommit(
-                    f"select hash from {args.table} where rowid == ?",
-                    values=(str(row["rowid"]), ),
-                    one=True,
-                    decode=True)
+                    f"select hash from {args.table} where rowid == ?", values=(str(row["rowid"]), ), one=True, decode=True)
 
                 if not fileinfo.verify(fileinfo.digest) and not args.force:
                     if args.debug or args.verbose:
