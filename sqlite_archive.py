@@ -408,17 +408,25 @@ class SQLiteArchive:
                 "Extract mode and Compact mode require an existing database.")
 
         self.dbcon.row_factory = sqlite3.Row
-        if args.mode == 'extract':
-            self.dbcon.text_factory = bytes
+
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
-        if args.mode in ("add", "extract") and 'files' in args and len(args.files) > 0:
-            self.files = [x for x in globlist(args.files) if pathlib.Path(x).resolve() != pathlib.Path(args.db).resolve() and x.is_file()]
+        if args.mode == "add" and 'files' in args and len(args.files) > 0:
+            self.files = [x for x in globlist(args.files) if pathlib.Path(x).resolve() != pathlib.Path(args.db).resolve() and pathlib.Path(x).is_file()]
             self.files.sort()
             if args.debug or args.verbose:
                 print("File List:")
                 print(self.files, end="\n\n")
+        elif args.mode == "extract" and "files" in args and len(args.files) > 0:
+            for i in args.files:
+                if "*" in i:
+                    if args.verbose or args.debug:
+                        print(f"Removing {i} from file list because it contains a glob character.")
+                    args.files.remove(i)
+                    if len(args.files) == 0:
+                        raise ValueError("File list is empty when it's not supposed to be.")
+            self.files = args.files
         if len(self.files) == 0 and args.mode == 'add':
             raise RuntimeError("No files were found.")
 
@@ -486,6 +494,38 @@ class SQLiteArchive:
             raise
         else:
             self.dbcon.commit()
+
+
+    def execquerymanynocommit(self,
+                              query: str,
+                              values: Union[tuple, list],
+                              one: bool = False,
+                              raw: bool = False,
+                              returndata = False,
+                              decode: bool = False) -> Union[List[Any], sqlite3.Cursor, None]:
+        output: Any = self.dbcon.cursor()
+        returnlist = ("select", "SELECT", "Select")
+        if (any(i in query for i in returnlist)
+                and returndata is False) or returndata is True:
+            output = output.executemany(query, values)
+
+            if one:
+                _out = output.fetchone()[0]
+                if type(_out) is bytes and decode:
+                    _out = _out.decode(
+                        sys.stdout.encoding
+                    ) if sys.stdout.encoding else _out.decode("utf-8")
+                print(output, flush=True)
+                return _out
+            elif raw:
+                print(output, flush=True)
+                return output
+            else:
+                print(output, flush=True)
+                return output.fetchall()
+        else:
+            output.executemany(output, values)
+        return None
 
     def drop(self):
         print(f"* Deleting table {args.table}...", end=' ', flush=True)
@@ -660,17 +700,22 @@ class SQLiteArchive:
 
     def extract(self):
         def calcextractquery():
-            if args.files and len(args.files) > 0:
-                if len(self.files) > 1:
-                    questionmarks: Any = '?' * len(args.files)
+            fileslen = len(self.files)
+            if args.files and fileslen > 0:
+                if fileslen > 1:
+                    questionmarks: Any = '?' * fileslen
                     out = f"select rowid, data from {args.table} where filename in ({','.join(questionmarks)}) order by filename asc"
-                elif args.files and len(args.files) == 1:
+                    # out = f"select rowid, data from {args.table} where filename in (?) order by filename asc" # executemany doesn't work on select satements, apparently
+                if self.files and fileslen == 1:
                     out = f"select rowid, data from {args.table} where filename == ? order by filename asc"
             else:
                 out = f"select rowid, data from {args.table} order by filename asc"
 
             return out
 
+        self.dbcon.text_factory = bytes
+        if not type(self.files) in (list, tuple):
+            raise TypeError("self.files must be a list or tuple")
         if len(
                 tuple(self.execquerynocommit(f"pragma table_info({args.table})",
                                              returndata=True))) < 1:
@@ -699,14 +744,17 @@ class SQLiteArchive:
             print(len(self.files))
             print(repr(tuple(self.files)))
         query: list = calcextractquery()
-        if args.debug or args.verbose:
-            print(query)
+        
         cursor: sqlite3.Cursor = None
 
-        if self.files and len(self.files) > 0 or "?" in query:
-            cursor = self.execquerynocommit(query, self.files, raw=True)
+        if self.files and len(self.files) > 0:
+            if args.debug or args.verbose:
+                print(query)
+            cursor = self.execquerynocommit(query, self.files, raw=True, returndata=True)
         else:
-            cursor = self.execquerynocommit(query, raw=True)
+            if args.debug or args.verbose:
+                print(query)
+            cursor = self.execquerynocommit(query, raw=True, returndata=True)
 
         row: Any = cursor.fetchone()
         while row:
