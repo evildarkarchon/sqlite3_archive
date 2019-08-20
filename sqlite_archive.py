@@ -12,6 +12,8 @@ import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, Union
+from sqlite3_archive.utility import DBUtility, globlist, duplist, calcname, cleantablename, infertable
+from sqlite3_archive.fileinfo import FileInfo
 
 files_args: Tuple = ("files", "*")
 lowercase_table_args: Dict = {"long": "--lowercase-table", "action": "store_true", "dest": "lower",
@@ -89,8 +91,8 @@ add.add_argument("--no-dups",
                  help="Disables saving the duplicate list as a json file or reading an existing one from an existing file."
                  )
 add.add_argument("--hide-dups",
-                 dest="hidedups",
-                 action="store_true",
+                 dest="showdups",
+                 action="store_false",
                  help="Hides the list of duplicate files.")
 add.add_argument("--dups-current-db",
                  dest="dupscurrent",
@@ -157,149 +159,31 @@ if args.verbose or args.debug:
     print(args)
 
 
-def cleantablename(instring: str, lower: bool = False):
-    out = instring.replace(".", "_").replace(
-        ' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace(
-            '\\', '_').replace('-', '_').replace('#', '')
-    if lower:
-        return out.lower()
-    else:
-        return out
-
-
 if "table" in args and args.table:
-    args.table = cleantablename(args.table)
-
-
-def infertable():
-    if args.mode == "add":
-        base: pathlib.Path = pathlib.Path(args.files[0]).resolve()
-
-    if not base.exists():
-        return None
-
-    f: str = None
-    if args.mode == "add" and base.is_file():
-        f = cleantablename(base.parent.name, args.lower)
-    elif args.mode == "add" and base.is_dir():
-        f = cleantablename(base.name, args.lower)
-
-    if args.mode == "extract":
-        if args.files[0]:
-            if args.files[0] and not args.out:
-                f = cleantablename(pathlib.Path(args.files[0]).stem)
-                if args.pop:
-                    args.files.pop(0)
-            elif args.out and not args.files[0]:
-                f = cleantablename(pathlib.Path(args.out).name)
-
-    if f:
-        return f
-    else:
-        return None
-
-
-@dataclass
-class FileInfo:
-    name: str = ''
-    data: bytes = b''
-    digest: str = ''
-
-    def __post_init__(self):
-        name = None
-        if self.name:
-            name = pathlib.Path(self.name)
-        if name and name.resolve().is_file() and not self.data:
-            self.data = name.resolve().read_bytes()
-        if self.data and not self.digest:
-            self.digest = self.calculatehash()
-
-    def calculatehash(self):
-        if self.data:
-            filehash = hashlib.sha512()
-            filehash.update(self.data)
-            return filehash.hexdigest()
-        else:
-            return None
-
-    def verify(self, refhash: str):
-        calchash = self.calculatehash()
-        if args.debug or args.verbose:
-            print(f"* Verifying digest for {self.name}...",
-                  end=' ',
-                  flush=True)
-        if calchash == refhash:
-            if args.debug or args.verbose:
-                print("pass", flush=True)
-            return True
-        elif calchash != refhash:
-            if args.debug or args.verbose:
-                print("failed", flush=True)
-            return False
-
-
-if "table" in args and not args.table:
+    args.table = cleantablename(args.table, lower=args.lower)
+elif "table" in args and not args.table:
     if args.mode in ('add', 'extract') and args.files:
-        args.table = infertable()
-        if not args.table:
-            raise RuntimeError(
-                "File or Directory specified not found and table was not specified."
-            )
+        if args.mode == "add":
+            args.table = infertable(mode=args.mode, lower=args.lower, files=args.files)
+        elif args.mode == "extract":
+            args.table = infertable(mode=args.mode, lower=args.lower, files=args.files, out=args.out, pop=args.pop)
+
+    if not args.table:
+        raise RuntimeError(
+            "File or Directory specified not found and table was not specified."
+        )
 
 
-def globlist(listglob: List):
-    for a in listglob:
-        objtype = type(a)
-        if args.mode == "extract":
-            yield from listglob
-            break
-
-        if objtype is str and "*" in a:
-            yield from map(pathlib.Path, glob.glob(a, recursive=True))
-        elif objtype is pathlib.Path and a.is_file() or objtype is str and pathlib.Path(a).is_file():
-            if objtype is str:
-                yield pathlib.Path(a)
-            elif objtype is pathlib.Path:
-                yield a
-            else:
-                continue
-        elif objtype is str and "*" not in a and pathlib.Path(a).is_file():
-            yield pathlib.Path(a)
-        elif objtype is str and "*" not in a and pathlib.Path(a).is_dir() or objtype is pathlib.Path and a.is_dir():
-            yield from pathlib.Path(a).rglob("*")
-        else:
-            yield from map(pathlib.Path, glob.glob(a, recursive=True))
-
-
-def duplist(dups: dict, dbname: str):
-    if len(dups) > 0:
-        if len(dups[dbname]) is 0:
-            dups.pop(dbname)
-        keylist = list(dups.keys())
-        dupsexist = False
-        for i in keylist:
-            if len(dups[i]) >= 1:
-                dupsexist = True
-        if not args.hidedups and dupsexist:
-            if args.dupscurrent and dbname in keylist:
-                print(
-                    f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
-            elif not args.dupscurrent:
-                print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
-        if args.dups_file and dupsexist:
-            dupspath = pathlib.Path(args.dups_file)
-            dupspath.write_text(json.dumps(dups, indent=4))
-
-
-class SQLiteArchive:
+class SQLiteArchive(DBUtility):
     def __init__(self):
-        self.db: pathlib.Path = pathlib.Path(args.db).resolve()
+        addorcreate = args.mode in ("add", "create")
+        super().__init__(args)
         self.files: list = []
 
         def setwal() -> bool:
             try:
-                self.dbcon.execute("PRAGMA journal_mode=WAL;")
-                new_journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
+                self.execquerynocommit("PRAGMA journal_mode=WAL;")
+                new_journal_mode = self.execquerynocommit("PRAGMA journal_mode;", one=True, returndata=True)
                 if addorcreate and new_journal_mode != journal_mode:
                     return True
                 else:
@@ -310,8 +194,8 @@ class SQLiteArchive:
 
         def setdel() -> bool:
             try:
-                self.dbcon.execute("PRAGMA journal_mode=delete;")
-                new_journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
+                self.execquerynocommit("PRAGMA journal_mode=delete;")
+                new_journal_mode = self.execquerynocommit("PRAGMA journal_mode;", one=True, returndata=True)
                 if addorcreate and new_journal_mode != journal_mode:
                     return True
                 else:
@@ -321,14 +205,14 @@ class SQLiteArchive:
             return None
 
         def setav() -> bool:
-            avstate = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+            avstate = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
             avstate2 = None
             notchanged = "autovacuum mode not changed"
             if args.verbose or args.debug:
                 print(f"current autovacuum mode: {avstate}")
             if args.autovacuum and args.autovacuum in ("enable", "enabled", "full", 1, "1") and not avstate == 1:
-                self.dbcon.execute("PRAGMA auto_vacuum = 1;")
-                avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                self.execquerynocommit("PRAGMA auto_vacuum = 1")
+                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
                 if not args.mode == "compact" and avstate2 == 1:
                     return True
                 else:
@@ -338,8 +222,8 @@ class SQLiteArchive:
                 if args.verbose or args.debug:
                     print("full auto_vacuum")
             elif args.autovacuum and args.autovacuum in ("incremental", 2, "2") and not avstate == 2:
-                self.dbcon.execute("PRAGMA auto_vacuum = 2;")
-                avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                self.execquerynocommit("PRAGMA auto_vacuum = 2;")
+                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
                 if not args.mode == "compact" and avstate2 == 2:
                     return True
                 else:
@@ -349,8 +233,8 @@ class SQLiteArchive:
                 if args.verbose or args.debug:
                     print("incremental auto_vacuum")
             elif args.autovacuum and args.autovacuum in ("disable", "disabled", 0, "0") and not avstate == 0:
-                self.dbcon.execute("PRAGMA auto_vacuum = 0;")
-                avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                self.execquerynocommit("PRAGMA auto_vacuum = 0;")
+                avstate2 = self.execquerynocommit("PRAGMA_auto_vacuum;", one=True, returndata=True)
                 if not args.mode == "compact" and avstate2 == 0:
                     return True
                 else:
@@ -362,8 +246,8 @@ class SQLiteArchive:
             else:
                 print("Somehow, argparse messed up and the autovacuum mode argument is not one of the valid choices, defaulting to full autovacuum mode.")
                 if not avstate == 1:
-                    self.dbcon.execute("PRAGMA auto_vacuum = 1;")
-                    avstate2 = self.dbcon.execute("PRAGMA auto_vacuum;").fetchone()[0]
+                    self.execquerynocommit("PRAGMA auto_vacuum = 1;")
+                    avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
                     if not args.mode == "compact" and avstate2 == 1:
                         return True
                     else:
@@ -374,38 +258,21 @@ class SQLiteArchive:
                     return False
             return None
 
-        addorcreate = args.mode in ("add", "create")
-        if self.db.is_file():
-            self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
-            needsvacuum = False
-            if addorcreate and "autovacuum" in args and args.autovacuum:
-                needsvacuum = setav()
+        needsvacuum = False
+        if addorcreate and "autovacuum" in args and args.autovacuum:
+            needsvacuum = setav()
 
-            journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
-            wal = ("WAL", "wal", "Wal", "WAl")
-            rollback = ("delete", "Delete", "DELETE")
+        journal_mode = self.execquerynocommit("PRAGMA journal_mode", one=True, returndata=True)
+        wal = ("WAL", "wal", "Wal", "WAl")
+        rollback = ("delete", "Delete", "DELETE")
 
-            if addorcreate and "wal" in args and args.wal and journal_mode not in wal:
-                needsvacuum = setwal()
-            elif addorcreate and "rollback" in args and args.rollback and journal_mode not in rollback:
-                needsvacuum = setdel()
+        if addorcreate and "wal" in args and args.wal and journal_mode not in wal:
+            needsvacuum = setwal()
+        elif addorcreate and "rollback" in args and args.rollback and journal_mode not in rollback:
+            needsvacuum = setdel()
 
-            if needsvacuum:
-                self.dbcon.execute("VACUUM;")
-        elif not self.db.is_file() and addorcreate:
-            self.db.touch()
-            self.dbcon: sqlite3.Connection = sqlite3.connect(self.db)
-            journal_mode = self.dbcon.execute("PRAGMA journal_mode").fetchone()[0]
-            if "autovacuum" in args and args.autovacuum:
-                setav()
-            if "wal" in args and args.wal and journal_mode not in ("WAL", "wal", "Wal", "WAl"):
-                setwal()
-            elif "rollback" in args and args.rollback and journal_mode not in ("delete", "Delete", "DELETE"):
-                setdel()
-            self.dbcon.execute("VACUUM;")
-        else:
-            raise RuntimeError(
-                "Extract mode and Compact mode require an existing database.")
+        if needsvacuum:
+            self.execquerynocommit("VACUUM;")
 
         self.dbcon.row_factory = sqlite3.Row
 
@@ -413,7 +280,7 @@ class SQLiteArchive:
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
         if args.mode == "add" and 'files' in args and len(args.files) > 0:
-            self.files = [x for x in globlist(args.files) if pathlib.Path(x).resolve() != pathlib.Path(args.db).resolve() and pathlib.Path(x).is_file()]
+            self.files = [x for x in globlist(args.files, args.mode) if pathlib.Path(x).resolve() != pathlib.Path(args.db).resolve() and pathlib.Path(x).is_file()]
             self.files.sort()
             if args.debug or args.verbose:
                 print("File List:")
@@ -429,103 +296,6 @@ class SQLiteArchive:
             self.files = args.files
         if len(self.files) == 0 and args.mode == 'add':
             raise RuntimeError("No files were found.")
-
-    def execquerynocommit(self,
-                          query: str,
-                          values: Union[tuple, list] = None,
-                          one: bool = False,
-                          raw: bool = False,
-                          returndata=False,
-                          decode: bool = False) -> Union[List[Any], sqlite3.Cursor, None]:
-        if values and type(values) not in (list, tuple):
-            raise TypeError("Values argument must be a list or tuple.")
-        output: Any = None
-        returnlist = ("select", "SELECT", "Select")
-        if (any(i in query for i in returnlist)
-                and returndata is False) or returndata is True:
-            if values:
-                output = self.dbcon.execute(query, values)
-            else:
-                output = self.dbcon.execute(query)
-
-            if one:
-                _out = output.fetchone()[0]
-                if type(_out) is bytes and decode:
-                    _out = _out.decode(
-                        sys.stdout.encoding
-                    ) if sys.stdout.encoding else _out.decode("utf-8")
-                return _out
-            elif raw:
-                return output
-            else:
-                return output.fetchall()
-        else:
-            if values:
-                self.dbcon.execute(query, values)
-            else:
-                self.dbcon.execute(query)
-            return None
-
-    def execquerycommit(self, query: str, values: Union[tuple, list] = None):
-        if values and type(values) not in (list, tuple):
-            raise TypeError("Values argument must be a list or tuple.")
-        if values and type(values) in (list, tuple):
-            try:
-                self.dbcon.execute(query, values)
-            except Exception:
-                raise
-            else:
-                self.dbcon.commit()
-        else:
-            try:
-                self.dbcon.execute(query)
-            except Exception:
-                raise
-            else:
-                self.dbcon.commit()
-
-    def execmanycommit(self, query: str, values: Union[tuple, list]):
-        if values and type(values) not in (list, tuple):
-            raise TypeError("Values argument must be a list or tuple.")
-
-        try:
-            self.dbcon.executemany(query, values)
-        except Exception:
-            raise
-        else:
-            self.dbcon.commit()
-
-
-    def execquerymanynocommit(self,
-                              query: str,
-                              values: Union[tuple, list],
-                              one: bool = False,
-                              raw: bool = False,
-                              returndata = False,
-                              decode: bool = False) -> Union[List[Any], sqlite3.Cursor, None]:
-        output: Any = self.dbcon.cursor()
-        returnlist = ("select", "SELECT", "Select")
-        if (any(i in query for i in returnlist)
-                and returndata is False) or returndata is True:
-            output = output.executemany(query, values)
-
-            if one:
-                _out = output.fetchone()[0]
-                if type(_out) is bytes and decode:
-                    _out = _out.decode(
-                        sys.stdout.encoding
-                    ) if sys.stdout.encoding else _out.decode("utf-8")
-                print(output, flush=True)
-                return _out
-            elif raw:
-                print(output, flush=True)
-                return output
-            else:
-                print(output, flush=True)
-                return output.fetchall()
-        else:
-            output.executemany(output, values)
-        return None
 
     def drop(self):
         print(f"* Deleting table {args.table}...", end=' ', flush=True)
@@ -557,35 +327,6 @@ class SQLiteArchive:
         createindex = f'CREATE UNIQUE INDEX IF NOT EXISTS {args.table}_index ON {args.table} ( "filename", "hash" );'
         self.execquerycommit(createindex)
 
-    def calcname(self, inpath: pathlib.Path) -> str:
-        parents = sorted(inpath.parents)
-        parentslen = len(parents)
-        if args.verbose or args.debug:
-            print(parents)
-
-        def oldbehavior():
-            if args.verbose or args.debug:
-                print("Using old name calculation behavior")
-            if parentslen > 2:
-                return str(inpath.relative_to(inpath.parent.parent))
-            else:
-                return str(inpath.relative_to(inpath.parent))
-
-        try:
-            if parentslen == 1:
-                return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
-            elif inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
-                return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
-            elif not inpath.is_absolute() and parentslen > 1:
-                return str(inpath.relative_to(parents[1]))
-            else:
-                return oldbehavior()
-        except (ValueError, IndexError):
-            try:
-                return oldbehavior()
-            except Exception:
-                raise
-
     def add(self):
         def insert():
             query = f"insert into {args.table} (filename, data, hash) values (?, ?, ?)"
@@ -614,7 +355,7 @@ class SQLiteArchive:
             dups = json.loads(dupspath.read_text())
         replaced: int = 0
 
-        dbname: str = self.calcname(self.db)
+        dbname: str = calcname(self.db, verbose=args.verbose)
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
 
@@ -622,7 +363,7 @@ class SQLiteArchive:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
-            fileinfo = FileInfo(name=self.calcname(i))
+            fileinfo = FileInfo(name=calcname(i, verbose=args.verbose))
             try:
                 if i.is_file():
                     exists: int = None
@@ -696,7 +437,7 @@ class SQLiteArchive:
         if args.replace and args.replace_vacuum and replaced > 0:
             self.compact()
         if args.dups:
-            duplist(dups, dbname)
+            duplist(dups, dbname, outfile=args.dups_file, show=args.showdups, currentdb=args.dupscurrent)
 
     def extract(self):
         def calcextractquery():
