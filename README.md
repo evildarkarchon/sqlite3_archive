@@ -4,7 +4,7 @@ Python version of my sqlite3_archive project. This script requires at least vers
 
 ---
 
-This script's purpose is to store files as BLOBs in an sqlite3 database, along with a couple pieces of metadata (file name and sha256 hash). More metadata will be added as needed. The schema is not frozen yet, so newer versions of this script may be incompatible with older databases. Luckily, there are plenty of tools (including the original sqlite3 command line program) that can read sqlite3 databases.
+This script's purpose is to store files as BLOBs in an sqlite3 database, along with a couple pieces of metadata (file name and sha512 hash). More metadata will be added as needed. The schema is not frozen yet, so newer versions of this script may be incompatible with older databases. Luckily, there are plenty of tools (including the original sqlite3 command line program) that can read sqlite3 databases.
 
 ---
 
