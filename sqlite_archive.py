@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import argparse
 import atexit
-import glob
-import hashlib
+# import glob
+# import hashlib
 import json
 import pathlib
 import sqlite3
-import sys
-from collections.abc import Iterable
-from dataclasses import dataclass
+# import sys
+# from collections.abc import Iterable
+# from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, Union
 from sqlite3_archive.utility import DBUtility, globlist, duplist, calcname, cleantablename, infertable
 from sqlite3_archive.fileinfo import FileInfo
