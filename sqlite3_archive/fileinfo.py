@@ -5,6 +5,7 @@ import pathlib
 from argparse import Namespace
 from dataclasses import dataclass
 
+
 @dataclass
 class FileInfo:
     name: str = ''

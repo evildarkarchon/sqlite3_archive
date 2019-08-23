@@ -9,6 +9,7 @@ import sys
 from argparse import Namespace
 from typing import Union, Any, List, Tuple
 
+
 def cleantablename(instring: str, lower: bool = False):
     out = instring.replace(".", "_").replace(
         ' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace(
@@ -19,7 +20,11 @@ def cleantablename(instring: str, lower: bool = False):
         return out
 
 
-def infertable(mode: str, lower: bool, files: list, out: str = None, pop: bool = False):
+def infertable(mode: str,
+               lower: bool,
+               files: list,
+               out: str = None,
+               pop: bool = False):
     if mode == "add":
         base: pathlib.Path = pathlib.Path(files[0]).resolve()
 
@@ -56,7 +61,8 @@ def globlist(listglob: List, mode: str):
 
             if objtype is str and "*" in a:
                 yield from map(pathlib.Path, glob.glob(a, recursive=True))
-            elif objtype is pathlib.Path and a.is_file() or objtype is str and pathlib.Path(a).is_file():
+            elif objtype is pathlib.Path and a.is_file(
+            ) or objtype is str and pathlib.Path(a).is_file():
                 if objtype is str:
                     yield pathlib.Path(a)
                 elif objtype is pathlib.Path:
@@ -65,13 +71,15 @@ def globlist(listglob: List, mode: str):
                     continue
             elif objtype is str and "*" not in a and pathlib.Path(a).is_file():
                 yield pathlib.Path(a)
-            elif objtype is str and "*" not in a and pathlib.Path(a).is_dir() or objtype is pathlib.Path and a.is_dir():
+            elif objtype is str and "*" not in a and pathlib.Path(
+                    a).is_dir() or objtype is pathlib.Path and a.is_dir():
                 yield from pathlib.Path(a).rglob("*")
             else:
                 yield from map(pathlib.Path, glob.glob(a, recursive=True))
 
 
-def duplist(dups: dict, dbname: str, outfile: str, show: bool, currentdb: bool):
+def duplist(dups: dict, dbname: str, outfile: str, show: bool,
+            currentdb: bool):
     if len(dups) > 0:
         if len(dups[dbname]) is 0:
             dups.pop(dbname)
@@ -92,33 +100,34 @@ def duplist(dups: dict, dbname: str, outfile: str, show: bool, currentdb: bool):
 
 
 def calcname(inpath: pathlib.Path, verbose: bool) -> str:
-        parents = sorted(inpath.parents)
-        parentslen = len(parents)
+    parents = sorted(inpath.parents)
+    parentslen = len(parents)
+    if verbose:
+        print(parents)
+
+    def oldbehavior():
         if verbose:
-            print(parents)
+            print("Using old name calculation behavior")
+        if parentslen > 2:
+            return str(inpath.relative_to(inpath.parent.parent))
+        else:
+            return str(inpath.relative_to(inpath.parent))
 
-        def oldbehavior():
-            if verbose:
-                print("Using old name calculation behavior")
-            if parentslen > 2:
-                return str(inpath.relative_to(inpath.parent.parent))
-            else:
-                return str(inpath.relative_to(inpath.parent))
-
+    try:
+        if parentslen == 1:
+            return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
+        elif inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
+            return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
+        elif not inpath.is_absolute() and parentslen > 1:
+            return str(inpath.relative_to(parents[1]))
+        else:
+            return oldbehavior()
+    except (ValueError, IndexError):
         try:
-            if parentslen == 1:
-                return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
-            elif inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
-                return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
-            elif not inpath.is_absolute() and parentslen > 1:
-                return str(inpath.relative_to(parents[1]))
-            else:
-                return oldbehavior()
-        except (ValueError, IndexError):
-            try:
-                return oldbehavior()
-            except Exception:
-                raise
+            return oldbehavior()
+        except Exception:
+            raise
+
 
 class DBUtility:
     def __init__(self, args: Namespace):
@@ -132,19 +141,20 @@ class DBUtility:
                 dbcon = sqlite3.Connection(self.db)
 
             return dbcon
-        
+
         self.db: pathlib.Path = pathlib.Path(args.db)
         if self.db.exists():
             self.db = self.db.resolve()
         self.dbcon: sqlite3.Connection = createdb()
-    
+
     def execquerynocommit(self,
                           query: str,
                           values: Union[tuple, list] = None,
                           one: bool = False,
                           raw: bool = False,
-                          returndata = False,
-                          decode: bool = False) -> Union[List[Any], sqlite3.Cursor, None]:
+                          returndata=False,
+                          decode: bool = False
+                          ) -> Union[List[Any], sqlite3.Cursor, None]:
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         output: Any = None
@@ -203,14 +213,14 @@ class DBUtility:
         else:
             self.dbcon.commit()
 
-
     def execquerymanynocommit(self,
                               query: str,
                               values: Union[tuple, list],
                               one: bool = False,
                               raw: bool = False,
-                              returndata = False,
-                              decode: bool = False) -> Union[List[Any], sqlite3.Cursor, None]:
+                              returndata=False,
+                              decode: bool = False
+                              ) -> Union[List[Any], sqlite3.Cursor, None]:
         output: Any = self.dbcon.cursor()
         returnlist = ("select", "SELECT", "Select")
         if (any(i in query for i in returnlist)
