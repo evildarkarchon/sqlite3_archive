@@ -12,4 +12,5 @@ test*
 **/*.png
 **/.vscode
 *_ref.py
+.mypy_cache
 !bandit_baseline.json
