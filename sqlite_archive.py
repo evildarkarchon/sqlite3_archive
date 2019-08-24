@@ -67,8 +67,7 @@ def parse_args() -> argparse.Namespace:
         "--verbose",
         "-v",
         action="store_true",
-        help=
-        "Print some more information without changing the exception raising policy."
+        help="Print some more information without changing the exception raising policy."
     )
     walargs = parser.add_mutually_exclusive_group()
     walargs.add_argument(
@@ -90,8 +89,7 @@ def parse_args() -> argparse.Namespace:
     drop: argparse.ArgumentParser = subparsers.add_parser(
         'drop',
         aliases=['drop-table', 'drop_table'],
-        help=
-        "Drop the specified table. NOTE: this will run VACUUM when done, by default.",
+        help="Drop the specified table. NOTE: this will run VACUUM when done, by default.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     drop.add_argument("--no-drop-vacuum",
@@ -116,8 +114,7 @@ def parse_args() -> argparse.Namespace:
         "--replace",
         "-r",
         action="store_true",
-        help=
-        "Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation."
+        help="Replace any existing file entry's data instead of skipping. By default, the VACUUM command will be run to prevent database fragmentation."
     )
     add.add_argument(
         "--no-replace-vacuum",
@@ -128,15 +125,13 @@ def parse_args() -> argparse.Namespace:
         "--dups-file",
         type=str,
         dest="dups_file",
-        help=
-        "Location of the file to store the list of duplicate files to.",
+        help="Location of the file to store the list of duplicate files to.",
         default=f"{pathlib.Path.cwd().joinpath('duplicates.json')}")
     add.add_argument(
         "--no-dups",
         action="store_true",
         dest="nodups",
-        help=
-        "Disables saving the duplicate list as a json file or reading an existing one from an existing file."
+        help="Disables saving the duplicate list as a json file or reading an existing one from an existing file."
     )
     add.add_argument("--hide-dups",
                      dest="hidedups",
@@ -156,19 +151,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         dest="no_atomic",
         help="Run commit on every insert instead of at the end of the loop.")
+    add.add_argument("--vacuum", action="store_true", dest="vacuum", help="Run VACUUM at the end.")
     add.add_argument(files_args[0],
                      nargs=files_args[1],
                      help="Files to be archived in the SQLite Database.")
 
     compact = subparsers.add_parser(
         "compact",
-        help=
-        "Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)",
+        help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    compact.add_argument(files_args[0],
-                     nargs=files_args[1],
-                     help="Files to be archived in the SQLite Database. The database will be VACUUM'd after.")
 
     create = subparsers.add_parser(
         "create",
@@ -196,8 +188,7 @@ def parse_args() -> argparse.Namespace:
         "-o",
         dest="out",
         type=str,
-        help=
-        "Directory to output files to. Defaults to a directory named after the table in the current directory."
+        help="Directory to output files to. Defaults to a directory named after the table in the current directory."
     )
     extract.add_argument(lowercase_table_args["long"],
                          action=lowercase_table_args["action"],
@@ -208,15 +199,13 @@ def parse_args() -> argparse.Namespace:
         "-f",
         dest="force",
         action="store_true",
-        help=
-        "Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database."
+        help="Forces extraction of a file from the database, even if the digest of the data does not match the one recorded in the database."
     )
     extract.add_argument(
         "--infer-pop-file",
         action="store_true",
         dest="pop",
-        help=
-        "Removes the first entry in the file list when inferring the table name (has no effect when table name is specified)."
+        help="Removes the first entry in the file list when inferring the table name (has no effect when table name is specified)."
     )
     extract.add_argument(
         files_args[0],
@@ -254,7 +243,7 @@ class SQLiteArchive(DBUtility):
                 "File or Directory specified not found and table was not specified."
             )
 
-        addorcreate = self.args.mode in ("add", "create")
+        addorcreate: bool = self.args.mode in ("add", "create")
         super().__init__(self.args)
         self.files: list = []
 
@@ -460,9 +449,9 @@ class SQLiteArchive(DBUtility):
                 self.execquerycommit(query, values)
             else:
                 print(
-                f"* Queueing {fileinfo.name}'s data for replacement in {self.args.table} with specified file's data...",
-                end=' ',
-                flush=True)
+                    f"* Queueing {fileinfo.name}'s data for replacement in {self.args.table} with specified file's data...",
+                    end=' ',
+                    flush=True)
                 self.execquerynocommit(query, values)
 
         self.schema()
@@ -556,7 +545,7 @@ class SQLiteArchive(DBUtility):
             else:
                 print("done")
 
-        if self.args.replace and not self.args.no_replace_vacuum and replaced > 0:
+        if self.args.replace and not self.args.no_replace_vacuum and replaced > 0 or self.args.vacuum:
             self.compact()
         if not self.args.nodups:
             duplist(dups,
@@ -616,7 +605,7 @@ class SQLiteArchive(DBUtility):
             print(repr(tuple(self.files)))
         query: list = calcextractquery()
 
-        cursor: sqlite3.Cursor = None
+        cursor: Union[sqlite3.Cursor, None] = None
 
         if self.files and len(self.files) > 0:
             if self.args.debug or self.args.verbose:
@@ -695,11 +684,8 @@ if sqlitearchive.args.mode == 'create':
     sqlitearchive.schema()
 elif sqlitearchive.args.mode == 'drop':
     sqlitearchive.drop()
-elif sqlitearchive.args.mode == 'compact' and not sqlitearchive.args.files:
+elif sqlitearchive.args.mode == 'compact':
     sqlitearchive.compact()
-elif sqlitearchive.args.mode == 'compact' and sqlitearchive.args.files:
-    sqlitearchive.add()
-    atexit.register(sqlitearchive.compact)
 elif sqlitearchive.args.mode == 'extract':
     sqlitearchive.extract()
 else:
