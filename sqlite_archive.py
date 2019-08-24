@@ -50,7 +50,8 @@ def parse_args() -> argparse.Namespace:
     autovacuum_args["choices"].extend(autovacuum_args["choices_av0"])
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
-        description="Imports or Exports files from an sqlite3 database.")
+        description="Imports or Exports files from an sqlite3 database.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--db",
                         "-d",
                         dest="db",
@@ -90,15 +91,16 @@ def parse_args() -> argparse.Namespace:
         'drop',
         aliases=['drop-table', 'drop_table'],
         help=
-        "Drop the specified table. NOTE: this will run VACUUM when done, by default."
+        "Drop the specified table. NOTE: this will run VACUUM when done, by default.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     drop.add_argument("--no-drop-vacuum",
-                      action="store_false",
-                      dest="drop_vacuum",
+                      action="store_true",
+                      dest="no_drop_vacuum",
                       help="Do not execute VACUUM when dropping a table")
     drop.add_argument("table", help="Name of table to use")
 
-    add = subparsers.add_parser("add", help="Add files to the database.")
+    add = subparsers.add_parser("add", help="Add files to the database.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     add.add_argument(autovacuum_args["long"],
                      autovacuum_args["short"],
                      default=autovacuum_args["default"],
@@ -119,26 +121,26 @@ def parse_args() -> argparse.Namespace:
     )
     add.add_argument(
         "--no-replace-vacuum",
-        action="store_false",
-        dest="replace_vacuum",
+        action="store_true",
+        dest="no_replace_vacuum",
         help="Do not run the VACUUM command after replacing data.")
     add.add_argument(
         "--dups-file",
         type=str,
         dest="dups_file",
         help=
-        "Location of the file to store the list of duplicate files to. Defaults to duplicates.json in current directory.",
-        default=f"{pathlib.Path.cwd()}/duplicates.json")
+        "Location of the file to store the list of duplicate files to.",
+        default=f"{pathlib.Path.cwd().joinpath('duplicates.json')}")
     add.add_argument(
         "--no-dups",
-        action="store_false",
-        dest="dups",
+        action="store_true",
+        dest="nodups",
         help=
         "Disables saving the duplicate list as a json file or reading an existing one from an existing file."
     )
     add.add_argument("--hide-dups",
-                     dest="showdups",
-                     action="store_false",
+                     dest="hidedups",
+                     action="store_true",
                      help="Hides the list of duplicate files.")
     add.add_argument(
         "--dups-current-db",
@@ -151,8 +153,8 @@ def parse_args() -> argparse.Namespace:
                      help=lowercase_table_args["help"])
     add.add_argument(
         "--no-atomic",
-        action="store_false",
-        dest="atomic",
+        action="store_true",
+        dest="no_atomic",
         help="Run commit on every insert instead of at the end of the loop.")
     add.add_argument(files_args[0],
                      nargs=files_args[1],
@@ -161,7 +163,8 @@ def parse_args() -> argparse.Namespace:
     compact = subparsers.add_parser(
         "compact",
         help=
-        "Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)"
+        "Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     compact.add_argument(files_args[0],
                      nargs=files_args[1],
@@ -170,7 +173,8 @@ def parse_args() -> argparse.Namespace:
     create = subparsers.add_parser(
         "create",
         aliases=['create-table', 'create_table'],
-        help="Runs the table creation queries and exits.")
+        help="Runs the table creation queries and exits.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     create.add_argument(autovacuum_args["long"],
                         autovacuum_args["short"],
                         nargs=autovacuum_args["nargs"],
@@ -181,7 +185,7 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("table", help=table_arguments["help"])
 
     extract: argparse.ArgumentParser = subparsers.add_parser(
-        'extract', help="Extract files from a table instead of adding them.")
+        'extract', help="Extract files from a table instead of adding them.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     extract.add_argument(table_arguments["long"],
                          table_arguments["short"],
                          dest=table_arguments["dest"],
@@ -217,7 +221,7 @@ def parse_args() -> argparse.Namespace:
     extract.add_argument(
         files_args[0],
         nargs=files_args[1],
-        help="Files to be extracted from the SQLite Database.")
+        help="Files to be extracted from the SQLite Database. Leaving this empty will extract all files from the specified table.")
 
     return parser.parse_args()
 
@@ -408,7 +412,7 @@ class SQLiteArchive(DBUtility):
             raise
         else:
             print("done")
-            if self.args.drop_vacuum:
+            if not self.args.no_drop_vacuum:
                 self.compact()
 
     def rename(self, name1: str, name2: str):
@@ -433,38 +437,38 @@ class SQLiteArchive(DBUtility):
         def insert():
             query = f"insert into {self.args.table} (filename, data, hash) values (?, ?, ?)"
             values = (fileinfo.name, fileinfo.data, fileinfo.digest)
-            if self.args.atomic:
+            if self.args.no_atomic:
+                print(f"* Adding {fileinfo.name} to {self.args.table}...",
+                      end=' ',
+                      flush=True)
+                self.execquerycommit(query, values)
+            else:
                 print(
                     f"* Queueing {fileinfo.name} for addition to {self.args.table}...",
                     end=' ',
                     flush=True)
                 self.execquerynocommit(query, values)
-            else:
-                print(f"* Adding {fileinfo.name} to {self.args.table}...",
-                      end=' ',
-                      flush=True)
-                self.execquerycommit(query, values)
 
         def replace():
             query = f"replace into {self.args.table} (filename, data, hash) values (?, ?, ?)"
             values = (fileinfo.name, fileinfo.data, fileinfo.digest)
-            if self.args.atomic:
-                print(
-                    f"* Queueing {fileinfo.name}'s data for replacement in {self.args.table} with specified file's data...",
-                    end=' ',
-                    flush=True)
-                self.execquerynocommit(query, values)
-            else:
+            if self.args.no_atomic:
                 print(
                     f"* Replacing {fileinfo.name}'s data in {self.args.table} with specified file's data...",
                     end=' ',
                     flush=True)
                 self.execquerycommit(query, values)
+            else:
+                print(
+                f"* Queueing {fileinfo.name}'s data for replacement in {self.args.table} with specified file's data...",
+                end=' ',
+                flush=True)
+                self.execquerynocommit(query, values)
 
         self.schema()
         dups: dict = {}
         dupspath = pathlib.Path(self.args.dups_file)
-        if dupspath.is_file() and self.args.dups:
+        if dupspath.is_file() and not self.args.nodups:
             dups = json.loads(dupspath.read_text())
         replaced: int = 0
 
@@ -541,7 +545,7 @@ class SQLiteArchive(DBUtility):
                     continue
             else:
                 print("done")
-        if self.args.atomic:
+        if not self.args.no_atomic:
             print("* Finishing up...", end=' ', flush=True)
             try:
                 self.dbcon.commit()
@@ -552,13 +556,13 @@ class SQLiteArchive(DBUtility):
             else:
                 print("done")
 
-        if self.args.replace and self.args.replace_vacuum and replaced > 0:
+        if self.args.replace and not self.args.no_replace_vacuum and replaced > 0:
             self.compact()
-        if self.args.dups:
+        if not self.args.nodups:
             duplist(dups,
                     dbname,
                     outfile=self.args.dups_file,
-                    show=self.args.showdups,
+                    hide=self.args.hidedups,
                     currentdb=self.args.dupscurrent)
 
     def extract(self):

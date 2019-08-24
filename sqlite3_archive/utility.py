@@ -77,7 +77,7 @@ def globlist(listglob: List, mode: str):
                 yield from map(pathlib.Path, glob.glob(a, recursive=True))
 
 
-def duplist(dups: dict, dbname: str, outfile: str, show: bool,
+def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
             currentdb: bool):
     if len(dups) > 0:
         if len(dups[dbname]) is 0:
@@ -87,7 +87,7 @@ def duplist(dups: dict, dbname: str, outfile: str, show: bool,
         for i in keylist:
             if len(dups[i]) >= 1:
                 dupsexist = True
-        if show and dupsexist:
+        if not hide and dupsexist:
             if currentdb and dbname in keylist:
                 print(
                     f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
