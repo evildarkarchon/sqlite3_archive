@@ -166,6 +166,9 @@ def parse_args() -> argparse.Namespace:
         help=
         "Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)"
     )
+    compact.add_argument(files_args[0],
+                     nargs=files_args[1],
+                     help="Files to be archived in the SQLite Database. The database will be VACUUM'd after.")
 
     create = subparsers.add_parser(
         "create",
