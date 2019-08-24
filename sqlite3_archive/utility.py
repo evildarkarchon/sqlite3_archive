@@ -5,9 +5,8 @@ import json
 import pathlib
 import sqlite3
 import sys
-
 from argparse import Namespace
-from typing import Union, Any, List, Tuple
+from typing import Any, List, Tuple, Union
 
 
 def cleantablename(instring: str, lower: bool = False):
