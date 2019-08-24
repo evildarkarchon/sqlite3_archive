@@ -243,3 +243,117 @@ class DBUtility:
         else:
             output.executemany(output, values)
         return None
+
+    def set_journal_and_av(self, args: Namespace, addorcreate: bool):
+        def setwal() -> bool:
+            try:
+                self.execquerynocommit("PRAGMA journal_mode=WAL;")
+                new_journal_mode = self.execquerynocommit(
+                    "PRAGMA journal_mode;", one=True, returndata=True)
+                if addorcreate and new_journal_mode != journal_mode:
+                    return True
+                else:
+                    return False
+            except sqlite3.DatabaseError:
+                return False
+            return None
+
+        def setdel() -> bool:
+            try:
+                self.execquerynocommit("PRAGMA journal_mode=delete;")
+                new_journal_mode = self.execquerynocommit(
+                    "PRAGMA journal_mode;", one=True, returndata=True)
+                if addorcreate and new_journal_mode != journal_mode:
+                    return True
+                else:
+                    return False
+            except sqlite3.DatabaseError:
+                return False
+            return None
+
+        def setav() -> bool:
+            avstate = self.execquerynocommit("PRAGMA auto_vacuum;",
+                                             one=True,
+                                             returndata=True)
+            avstate2 = None
+            notchanged = "autovacuum mode not changed"
+            if args.verbose or args.debug:
+                print(f"current autovacuum mode: {avstate}")
+            if args.autovacuum and args.autovacuum in (
+                    "enable", "enabled", "full", 1, "1") and not avstate == 1:
+                self.execquerynocommit("PRAGMA auto_vacuum = 1")
+                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;",
+                                                  one=True,
+                                                  returndata=True)
+                if not args.mode == "compact" and avstate2 == 1:
+                    return True
+                else:
+                    if avstate2 != 1 and avstate != 1 and args.verbose or args.debug:
+                        print(notchanged)
+                    return False
+                if args.verbose or args.debug:
+                    print("full auto_vacuum")
+            elif args.autovacuum and args.autovacuum in (
+                    "incremental", 2, "2") and not avstate == 2:
+                self.execquerynocommit("PRAGMA auto_vacuum = 2;")
+                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;",
+                                                  one=True,
+                                                  returndata=True)
+                if not args.mode == "compact" and avstate2 == 2:
+                    return True
+                else:
+                    if avstate2 != 2 and avstate != 2 and args.verbose or args.debug:
+                        print(notchanged)
+                    return False
+                if args.verbose or args.debug:
+                    print("incremental auto_vacuum")
+            elif args.autovacuum and args.autovacuum in (
+                    "disable", "disabled", 0, "0") and not avstate == 0:
+                self.execquerynocommit("PRAGMA auto_vacuum = 0;")
+                avstate2 = self.execquerynocommit("PRAGMA_auto_vacuum;",
+                                                  one=True,
+                                                  returndata=True)
+                if not args.mode == "compact" and avstate2 == 0:
+                    return True
+                else:
+                    if avstate2 != 0 and avstate != 0 and args.verbose or args.debug:
+                        print(notchanged)
+                    return False
+                if args.verbose or args.debug:
+                    print("auto_vacuum disabled")
+            else:
+                print(
+                    "Somehow, argparse messed up and the autovacuum mode argument is not one of the valid choices, defaulting to full autovacuum mode."
+                )
+                if not avstate == 1:
+                    self.execquerynocommit("PRAGMA auto_vacuum = 1;")
+                    avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;",
+                                                      one=True,
+                                                      returndata=True)
+                    if not args.mode == "compact" and avstate2 == 1:
+                        return True
+                    else:
+                        if avstate2 != 1 and avstate != 1 and args.verbose or args.debug:
+                            print(notchanged)
+                        return False
+                else:
+                    return False
+            return None
+
+        needsvacuum = False
+        if addorcreate and "autovacuum" in args and args.autovacuum:
+            needsvacuum = setav()
+
+        journal_mode = self.execquerynocommit("PRAGMA journal_mode",
+                                              one=True,
+                                              returndata=True)
+        wal = ("WAL", "wal", "Wal", "WAl")
+        rollback = ("delete", "Delete", "DELETE")
+
+        if addorcreate and "wal" in args and args.wal and journal_mode not in wal:
+            needsvacuum = setwal()
+        elif addorcreate and "rollback" in args and args.rollback and journal_mode not in rollback:
+            needsvacuum = setdel()
+
+        if needsvacuum:
+            self.execquerynocommit("VACUUM;")
