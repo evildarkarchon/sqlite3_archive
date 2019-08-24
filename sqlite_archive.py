@@ -69,6 +69,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print some more information without changing the exception raising policy."
     )
+    parser.add_argument(autovacuum_args["long"],
+                        autovacuum_args["short"],
+                        nargs=autovacuum_args["nargs"],
+                        default=autovacuum_args["default"],
+                        dest=autovacuum_args["dest"],
+                        choices=autovacuum_args["choices"],
+                        help=autovacuum_args["help"])
     walargs = parser.add_mutually_exclusive_group()
     walargs.add_argument(
         "--wal",
@@ -90,21 +97,17 @@ def parse_args() -> argparse.Namespace:
         'drop',
         aliases=['drop-table', 'drop_table'],
         help="Drop the specified table. NOTE: this will run VACUUM when done, by default.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     drop.add_argument("--no-drop-vacuum",
                       action="store_true",
                       dest="no_drop_vacuum",
                       help="Do not execute VACUUM when dropping a table")
     drop.add_argument("table", help="Name of table to use")
 
-    add = subparsers.add_parser("add", help="Add files to the database.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    add.add_argument(autovacuum_args["long"],
-                     autovacuum_args["short"],
-                     default=autovacuum_args["default"],
-                     dest=autovacuum_args["dest"],
-                     choices=autovacuum_args["choices"],
-                     help=autovacuum_args["help"])
+    add = subparsers.add_parser(
+        "add",
+        help="Add files to the database.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     add.add_argument(table_arguments["long"],
                      table_arguments["short"],
                      dest=table_arguments["dest"],
@@ -151,7 +154,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         dest="no_atomic",
         help="Run commit on every insert instead of at the end of the loop.")
-    add.add_argument("--vacuum", action="store_true", dest="vacuum", help="Run VACUUM at the end.")
+    add.add_argument("--vacuum",
+                     action="store_true",
+                     dest="vacuum",
+                     help="Run VACUUM at the end.")
     add.add_argument(files_args[0],
                      nargs=files_args[1],
                      help="Files to be archived in the SQLite Database.")
@@ -159,25 +165,19 @@ def parse_args() -> argparse.Namespace:
     compact = subparsers.add_parser(
         "compact",
         help="Run the VACUUM query on the database (WARNING: depending on the size of the DB, it might take a while)",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     create = subparsers.add_parser(
         "create",
         aliases=['create-table', 'create_table'],
         help="Runs the table creation queries and exits.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    create.add_argument(autovacuum_args["long"],
-                        autovacuum_args["short"],
-                        nargs=autovacuum_args["nargs"],
-                        default=autovacuum_args["default"],
-                        dest=autovacuum_args["dest"],
-                        choices=autovacuum_args["choices"],
-                        help=autovacuum_args["help"])
     create.add_argument("table", help=table_arguments["help"])
 
     extract: argparse.ArgumentParser = subparsers.add_parser(
-        'extract', help="Extract files from a table instead of adding them.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        'extract',
+        help="Extract files from a table instead of adding them.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     extract.add_argument(table_arguments["long"],
                          table_arguments["short"],
                          dest=table_arguments["dest"],
@@ -210,7 +210,8 @@ def parse_args() -> argparse.Namespace:
     extract.add_argument(
         files_args[0],
         nargs=files_args[1],
-        help="Files to be extracted from the SQLite Database. Leaving this empty will extract all files from the specified table.")
+        help="Files to be extracted from the SQLite Database. Leaving this empty will extract all files from the specified table."
+    )
 
     return parser.parse_args()
 
@@ -238,7 +239,7 @@ class SQLiteArchive(DBUtility):
                                                  out=self.args.out,
                                                  pop=self.args.pop)
 
-        if not self.args.table:
+        if "table" in self.args and not self.args.table:
             raise RuntimeError(
                 "File or Directory specified not found and table was not specified."
             )
@@ -247,7 +248,7 @@ class SQLiteArchive(DBUtility):
         super().__init__(self.args)
         self.files: list = []
 
-        self.set_journal_and_av(self.args, addorcreate)
+        self.set_journal_and_av(self.args)
 
         self.dbcon.row_factory = sqlite3.Row
 
@@ -343,11 +344,13 @@ class SQLiteArchive(DBUtility):
                     flush=True)
                 self.execquerynocommit(query, values)
 
-        self.schema()
+        if "table" in self.args and self.args.table:
+            self.schema()
         dups: dict = {}
-        dupspath = pathlib.Path(self.args.dups_file)
-        if dupspath.is_file() and not self.args.nodups:
-            dups = json.loads(dupspath.read_text())
+        if "dups_file" in self.args and self.args.dups_file:
+            dupspath = pathlib.Path(self.args.dups_file)
+            if dupspath.is_file() and not self.args.nodups:
+                dups = json.loads(dupspath.read_text())
         replaced: int = 0
 
         dbname: str = calcname(self.db, verbose=self.args.verbose)
@@ -577,5 +580,5 @@ elif sqlitearchive.args.mode == 'compact':
     sqlitearchive.compact()
 elif sqlitearchive.args.mode == 'extract':
     sqlitearchive.extract()
-else:
+elif sqlitearchive.args.mode == 'add':
     sqlitearchive.add()

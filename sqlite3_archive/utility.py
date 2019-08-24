@@ -244,17 +244,29 @@ class DBUtility:
             output.executemany(output, values)
         return None
 
-    def set_journal_and_av(self, args: Namespace, addorcreate: bool):
+    def set_journal_and_av(self, args: Namespace):
+        if args.debug:
+            print("function run")
+        journal_mode = self.execquerynocommit("PRAGMA journal_mode;",
+                                              one=True,
+                                              returndata=True)
+
         def setwal() -> bool:
+            if args.debug:
+                print("wal run")
             try:
-                self.execquerynocommit("PRAGMA journal_mode=WAL;")
+                self.execquerynocommit("PRAGMA journal_mode=wal;")
                 new_journal_mode = self.execquerynocommit(
                     "PRAGMA journal_mode;", one=True, returndata=True)
-                if addorcreate and new_journal_mode != journal_mode:
+                if args.verbose or args.debug:
+                    print(journal_mode)
+                    print(new_journal_mode)
+                if new_journal_mode != journal_mode:
                     return True
                 else:
                     return False
             except sqlite3.DatabaseError:
+                print("something went wrong.")
                 return False
             return None
 
@@ -263,7 +275,7 @@ class DBUtility:
                 self.execquerynocommit("PRAGMA journal_mode=delete;")
                 new_journal_mode = self.execquerynocommit(
                     "PRAGMA journal_mode;", one=True, returndata=True)
-                if addorcreate and new_journal_mode != journal_mode:
+                if new_journal_mode != journal_mode:
                     return True
                 else:
                     return False
@@ -341,18 +353,15 @@ class DBUtility:
             return None
 
         needsvacuum = False
-        if addorcreate and "autovacuum" in args and args.autovacuum:
+        if "autovacuum" in args and args.autovacuum:
             needsvacuum = setav()
 
-        journal_mode = self.execquerynocommit("PRAGMA journal_mode",
-                                              one=True,
-                                              returndata=True)
         wal = ("WAL", "wal", "Wal", "WAl")
         rollback = ("delete", "Delete", "DELETE")
 
-        if addorcreate and "wal" in args and args.wal and journal_mode not in wal:
+        if "wal" in args and args.wal and journal_mode not in wal:
             needsvacuum = setwal()
-        elif addorcreate and "rollback" in args and args.rollback and journal_mode not in rollback:
+        elif "rollback" in args and args.rollback and journal_mode not in rollback:
             needsvacuum = setdel()
 
         if needsvacuum:
