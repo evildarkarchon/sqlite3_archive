@@ -291,8 +291,7 @@ class DBUtility:
             notchanged = "autovacuum mode not changed"
             if args.verbose or args.debug:
                 print(f"current autovacuum mode: {avstate}")
-            if args.autovacuum and args.autovacuum in (
-                    "enable", "enabled", "full", 1, "1") and not avstate == 1:
+            if args.autovacuum and args.autovacuum in ("enable", "enabled", "full", 1, "1") and not avstate == 1:
                 self.execquerynocommit("PRAGMA auto_vacuum = 1")
                 avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;",
                                                   one=True,
@@ -333,24 +332,7 @@ class DBUtility:
                     return False
                 if args.verbose or args.debug:
                     print("auto_vacuum disabled")
-            else:
-                print(
-                    "Somehow, argparse messed up and the autovacuum mode argument is not one of the valid choices, defaulting to full autovacuum mode."
-                )
-                if not avstate == 1:
-                    self.execquerynocommit("PRAGMA auto_vacuum = 1;")
-                    avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;",
-                                                      one=True,
-                                                      returndata=True)
-                    if not args.mode == "compact" and avstate2 == 1:
-                        return True
-                    else:
-                        if avstate2 != 1 and avstate != 1 and args.verbose or args.debug:
-                            print(notchanged)
-                        return False
-                else:
-                    return False
-            return None
+            return False
 
         needsvacuum = False
         if "autovacuum" in args and args.autovacuum:
