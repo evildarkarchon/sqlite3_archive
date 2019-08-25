@@ -52,12 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description="Imports or Exports files from an sqlite3 database.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--db",
-                        "-d",
-                        dest="db",
-                        type=str,
-                        required=True,
-                        help="SQLite DB filename.")
+    parser.add_argument("db", type=str, help="SQLite DB filename.")
     parser.add_argument(
         "--debug",
         dest="debug",
@@ -98,9 +93,9 @@ def parse_args() -> argparse.Namespace:
         aliases=['drop-table', 'drop_table'],
         help="Drop the specified table. NOTE: this will run VACUUM when done, by default.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    drop.add_argument("--no-drop-vacuum",
-                      action="store_true",
+    drop.add_argument("--no-vacuum",
                       dest="no_drop_vacuum",
+                      action="store_true",
                       help="Do not execute VACUUM when dropping a table")
     drop.add_argument("table", help="Name of table to use")
 
