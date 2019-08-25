@@ -154,6 +154,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         dest="no_atomic",
         help="Run commit on every insert instead of at the end of the loop.")
+    add.add_argument(
+        "--exclude",
+        action="append",
+        dest="exclude",
+        help="Name of a file to exclude from the file list (can be specified multiple times)"
+    )
     add.add_argument("--vacuum",
                      action="store_true",
                      dest="vacuum",
@@ -263,9 +269,10 @@ class SQLiteArchive(DBUtility):
                     self.args.db).resolve() and pathlib.Path(x).is_file()
             ]
             self.files.sort()
-            
+            if not self.args.exclude:
+                self.args.exclude = ["Thumbs.db"]
             for i in self.files:
-                if "Thumbs.db" in str(i):
+                if str(i) in self.args.exclude:
                     self.files.remove(i)
 
             if self.args.debug or self.args.verbose:
