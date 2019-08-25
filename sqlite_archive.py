@@ -227,18 +227,6 @@ class SQLiteArchive(DBUtility):
         if "table" in self.args and self.args.table:
             self.args.table = cleantablename(self.args.table,
                                              lower=self.args.lower)
-        # elif "table" in self.args and not self.args.table:
-        #     if self.args.mode in ('add', 'extract') and self.args.files:
-        #         if self.args.mode == "add":
-        #             self.args.table = infertable(mode=self.args.mode,
-        #                                          lower=self.args.lower,
-        #                                          files=self.args.files)
-        #         elif self.args.mode == "extract":
-        #             self.args.table = infertable(mode=self.args.mode,
-        #                                          lower=self.args.lower,
-        #                                          files=self.args.files,
-        #                                          out=self.args.out,
-        #                                          pop=self.args.pop)
 
         addorcreate: bool = self.args.mode in ("add", "create")
         super().__init__(self.args)
