@@ -263,6 +263,11 @@ class SQLiteArchive(DBUtility):
                     self.args.db).resolve() and pathlib.Path(x).is_file()
             ]
             self.files.sort()
+            
+            for i in self.files:
+                if "Thumbs.db" in str(i):
+                    self.files.remove(i)
+
             if self.args.debug or self.args.verbose:
                 print("File List:")
                 print(self.files, end="\n\n")
@@ -349,6 +354,8 @@ class SQLiteArchive(DBUtility):
         dups: dict = {}
         if "dups_file" in self.args and self.args.dups_file:
             dupspath = pathlib.Path(self.args.dups_file)
+            if dupspath.exists():
+                dupspath = dupspath.resolve()
             if dupspath.is_file() and not self.args.nodups:
                 dups = json.loads(dupspath.read_text())
         replaced: int = 0
