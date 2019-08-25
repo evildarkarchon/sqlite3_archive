@@ -239,39 +239,6 @@ class SQLiteArchive(DBUtility):
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
-        if self.args.mode == "add" and 'files' in self.args and len(
-                self.args.files) > 0:
-            self.files = [
-                x for x in globlist(self.args.files, self.args.mode)
-                if pathlib.Path(x).resolve() != pathlib.Path(
-                    self.args.db).resolve() and pathlib.Path(x).is_file()
-            ]
-            self.files.sort()
-            if not self.args.exclude:
-                self.args.exclude = ["Thumbs.db"]
-            for i in self.files:
-                if str(i) in self.args.exclude:
-                    self.files.remove(i)
-
-            if self.args.debug or self.args.verbose:
-                print("File List:")
-                print(self.files, end="\n\n")
-        elif self.args.mode == "extract" and "files" in self.args and len(
-                self.args.files) > 0:
-            for i in self.args.files:
-                if "*" in i:
-                    if self.args.verbose or self.args.debug:
-                        print(
-                            f"Removing {i} from file list because it contains a glob character."
-                        )
-                    self.args.files.remove(i)
-                    if len(self.args.files) == 0:
-                        raise ValueError(
-                            "File list is empty when it's not supposed to be.")
-            self.files = self.args.files
-        if len(self.files) == 0 and self.args.mode == 'add':
-            raise RuntimeError("No files were found.")
-
     def drop(self):
         print(f"* Deleting table {self.args.table}...", end=' ', flush=True)
         try:
@@ -303,6 +270,25 @@ class SQLiteArchive(DBUtility):
         self.execquerycommit(createindex)
 
     def add(self):
+        if len(self.args.files) > 0:
+            self.files = [
+                x for x in globlist(self.args.files, self.args.mode)
+                if pathlib.Path(x).resolve() != pathlib.Path(
+                    self.args.db).resolve() and pathlib.Path(x).is_file()
+            ]
+            self.files.sort()
+            if not self.args.exclude:
+                self.args.exclude = ["Thumbs.db"]
+            for i in self.files:
+                if str(i) in self.args.exclude:
+                    self.files.remove(i)
+
+            if self.args.debug or self.args.verbose:
+                print("File List:")
+                print(self.files, end="\n\n")
+            if not self.files:
+                raise RuntimeError("No files were found.")
+
         def insert():
             query = f"insert into {self.args.table} (filename, data, hash) values (?, ?, ?)"
             values = (fileinfo.name, fileinfo.data, fileinfo.digest)
@@ -449,6 +435,17 @@ class SQLiteArchive(DBUtility):
                     currentdb=self.args.dupscurrent)
 
     def extract(self):
+        for i in self.args.files:
+            if "*" in i:
+                if self.args.verbose or self.args.debug:
+                    print(
+                        f"Removing {i} from file list because it contains a glob character."
+                    )
+                self.args.files.remove(i)
+                if len(self.args.files) == 0:
+                    raise ValueError(
+                        "File list is empty when it's not supposed to be.")
+                self.files = self.args.files
         if not self.args.table:
             self.args.table = infertable(mode=self.args.mode,
                                          lower=self.args.lower,
@@ -541,8 +538,8 @@ class SQLiteArchive(DBUtility):
                     one=True,
                     decode=True)
 
-                if not fileinfo.verify(
-                        fileinfo.digest) and not self.args.force:
+                if not fileinfo.verify(fileinfo.digest,
+                                       self.args) and not self.args.force:
                     if self.args.debug or self.args.verbose:
                         print(f"Calculated Digest: {fileinfo.calculatehash()}")
                         print(f"Recorded Hash: {fileinfo.digest}")
