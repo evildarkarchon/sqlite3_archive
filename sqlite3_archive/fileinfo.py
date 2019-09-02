@@ -4,6 +4,7 @@ import hashlib
 import pathlib
 from argparse import Namespace
 from dataclasses import dataclass
+from typing import Union
 
 
 @dataclass
@@ -13,15 +14,17 @@ class FileInfo:
     digest: str = ''
 
     def __post_init__(self):
-        name = None
+        path: Union[pathlib.Path, None] = None
         if self.name:
-            name = pathlib.Path(self.name)
-        if name and name.resolve().is_file() and not self.data:
-            self.data = name.resolve().read_bytes()
+            path = pathlib.Path(self.name)
+            if path.exists():
+                path = path.resolve()
+        if path and path.is_file() and not self.data:
+            self.data = path.read_bytes()
         if self.data and not self.digest:
             self.digest = self.calculatehash()
 
-    def calculatehash(self):
+    def calculatehash(self) -> Union[str, None]:
         if self.data:
             filehash = hashlib.sha512()
             filehash.update(self.data)
@@ -29,7 +32,7 @@ class FileInfo:
         else:
             return None
 
-    def verify(self, refhash: str, args: Namespace):
+    def verify(self, refhash: str, args: Namespace) -> Union[bool, None]:
         calchash = self.calculatehash()
         if args.debug or args.verbose:
             print(f"* Verifying digest for {self.name}...",
@@ -43,3 +46,7 @@ class FileInfo:
             if args.debug or args.verbose:
                 print("failed", flush=True)
             return False
+        return None
+
+
+__all__ = ["FileInfo"]

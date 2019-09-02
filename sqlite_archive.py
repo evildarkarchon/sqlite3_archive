@@ -17,14 +17,10 @@ def parse_args() -> argparse.Namespace:
 
     files_args: Tuple = ("files", "*")
     lowercase_table_args: Dict = {
-        "long":
-        "--lowercase-table",
-        "action":
-        "store_true",
-        "dest":
-        "lower",
-        "help":
-        "Modify the inferred table name to be lowercase (has no effect if table name is specified)."
+        "long": "--lowercase-table",
+        "action": "store_true",
+        "dest": "lower",
+        "help": "Modify the inferred table name to be lowercase (has no effect if table name is specified)."
     }
     table_arguments: Dict = {
         "long": "--table",
@@ -37,17 +33,11 @@ def parse_args() -> argparse.Namespace:
         "short": "-a",
         "nargs": 1,
         "dest": "autovacuum",
-        "choices_av1": [1, 'enabled', 'enable', 'full'],
-        "choices_av2": [2, 'incremental'],
-        "choices_av0": [0, 'disabled', 'disable'],
-        "default": "full",
-        "help": "Sets the automatic vacuum mode.",
-        "default": "full"
+        "default": 1,
+        "type": int,
+        "help": "Sets the automatic vacuum mode. (0 = disabled, 1 = full autovacuum mode, 2 = incremental autovacuum mode"
     }
-    autovacuum_args["choices"] = []
-    autovacuum_args["choices"].extend(autovacuum_args["choices_av1"])
-    autovacuum_args["choices"].extend(autovacuum_args["choices_av2"])
-    autovacuum_args["choices"].extend(autovacuum_args["choices_av0"])
+    autovacuum_args["choices"] = [0, 1, 2]
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description="Imports or Exports files from an sqlite3 database.",
@@ -153,6 +143,7 @@ def parse_args() -> argparse.Namespace:
         "--exclude",
         action="append",
         dest="exclude",
+        type=str,
         help="Name of a file to exclude from the file list (can be specified multiple times)"
     )
     add.add_argument("--vacuum",
@@ -161,6 +152,7 @@ def parse_args() -> argparse.Namespace:
                      help="Run VACUUM at the end.")
     add.add_argument(files_args[0],
                      nargs=files_args[1],
+                     type=str,
                      help="Files to be archived in the SQLite Database.")
 
     compact = subparsers.add_parser(
@@ -211,6 +203,7 @@ def parse_args() -> argparse.Namespace:
     extract.add_argument(
         files_args[0],
         nargs=files_args[1],
+        type=str,
         help="Files to be extracted from the SQLite Database. Leaving this empty will extract all files from the specified table."
     )
 
@@ -228,9 +221,9 @@ class SQLiteArchive(DBUtility):
             self.args.table = cleantablename(self.args.table,
                                              lower=self.args.lower)
 
-        addorcreate: bool = self.args.mode in ("add", "create")
+        # addorcreate: bool = self.args.mode in ("add", "create")
         super().__init__(self.args)
-        self.files: list = []
+        self.files: List = []
 
         self.set_journal_and_av(self.args)
 
@@ -264,14 +257,14 @@ class SQLiteArchive(DBUtility):
             print("done")
 
     def schema(self):
-        createtable = f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );'
+        createtable: str = f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );'
         self.execquerycommit(createtable)
-        createindex = f'CREATE UNIQUE INDEX IF NOT EXISTS {self.args.table}_index ON {self.args.table} ( "filename", "hash" );'
+        createindex: str = f'CREATE UNIQUE INDEX IF NOT EXISTS {self.args.table}_index ON {self.args.table} ( "filename", "hash" );'
         self.execquerycommit(createindex)
 
     def add(self):
         if len(self.args.files) > 0:
-            self.files = [
+            self.files: List = [
                 x for x in globlist(self.args.files, self.args.mode)
                 if pathlib.Path(x).resolve() != pathlib.Path(
                     self.args.db).resolve() and pathlib.Path(x).is_file()
@@ -290,8 +283,8 @@ class SQLiteArchive(DBUtility):
                 raise RuntimeError("No files were found.")
 
         def insert():
-            query = f"insert into {self.args.table} (filename, data, hash) values (?, ?, ?)"
-            values = (fileinfo.name, fileinfo.data, fileinfo.digest)
+            query: str = f"insert into {self.args.table} (filename, data, hash) values (?, ?, ?)"
+            values: Tuple = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if self.args.no_atomic:
                 print(f"* Adding {fileinfo.name} to {self.args.table}...",
                       end=' ',
@@ -305,8 +298,8 @@ class SQLiteArchive(DBUtility):
                 self.execquerynocommit(query, values)
 
         def replace():
-            query = f"replace into {self.args.table} (filename, data, hash) values (?, ?, ?)"
-            values = (fileinfo.name, fileinfo.data, fileinfo.digest)
+            query: str = f"replace into {self.args.table} (filename, data, hash) values (?, ?, ?)"
+            values: Tuple = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if self.args.no_atomic:
                 print(
                     f"* Replacing {fileinfo.name}'s data in {self.args.table} with specified file's data...",
@@ -334,7 +327,7 @@ class SQLiteArchive(DBUtility):
             self.schema()
         dups: dict = {}
         if "dups_file" in self.args and self.args.dups_file:
-            dupspath = pathlib.Path(self.args.dups_file)
+            dupspath: pathlib.Path = pathlib.Path(self.args.dups_file)
             if dupspath.exists():
                 dupspath = dupspath.resolve()
             if dupspath.is_file() and not self.args.nodups:
@@ -349,7 +342,7 @@ class SQLiteArchive(DBUtility):
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
-            fileinfo = FileInfo(name=calcname(i, verbose=self.args.verbose))
+            fileinfo: FileInfo = FileInfo(name=calcname(i, verbose=self.args.verbose))
             try:
                 if i.is_file():
                     exists: int = None
@@ -372,8 +365,8 @@ class SQLiteArchive(DBUtility):
                 query = self.execquerynocommit(
                     f"select filename from {self.args.table} where hash == ?",
                     (fileinfo.digest, ))[0][0]
-                querytype = type(query)
-                querylen = len(query)
+                querytype: str = type(query)
+                querylen: int = len(query)
                 if self.args.debug or self.args.verbose:
                     print(querytype)
                     print(querylen)
@@ -459,7 +452,7 @@ class SQLiteArchive(DBUtility):
             )
 
         def calcextractquery():
-            fileslen = len(self.files)
+            fileslen: int = len(self.files)
             if self.args.files and fileslen > 0:
                 if fileslen > 1:
                     questionmarks: Any = '?' * fileslen
@@ -506,7 +499,7 @@ class SQLiteArchive(DBUtility):
         if self.args.debug or self.args.verbose:
             print(len(self.files))
             print(repr(tuple(self.files)))
-        query: list = calcextractquery()
+        query: List = calcextractquery()
 
         cursor: Union[sqlite3.Cursor, None] = None
 
