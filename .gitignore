@@ -1,8 +1,7 @@
 test*
-**/test.*
 /dist
 /build
-/__pycache__
+__pycache__
 **/*.spec
 **/*.pyc
 **/*.json
