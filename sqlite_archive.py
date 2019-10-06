@@ -6,7 +6,7 @@ import atexit
 import json
 import pathlib
 import sqlite3
-import xmltodict
+# import xmltodict
 from typing import Any, Dict, List, Tuple, Union
 # from xml.dom.minidom import parseString
 # from xml.etree import cElementTree as ElementTree
@@ -117,12 +117,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         dest="dups_file",
         help="Location of the file to store the list of duplicate files to.",
-        default=f"{pathlib.Path.cwd().joinpath('duplicates.xml')}")
+        default=f"{pathlib.Path.cwd().joinpath('duplicates.json')}")
     add.add_argument(
         "--no-dups",
         action="store_true",
         dest="nodups",
-        help="Disables saving the duplicate list as a xml file or reading an existing one from an existing file."
+        help="Disables saving the duplicate list as a json file or reading an existing one from an existing file."
     )
     add.add_argument("--hide-dups",
                      dest="hidedups",
@@ -260,10 +260,7 @@ class SQLiteArchive(DBUtility):
             print("done")
 
     def schema(self):
-        createtable: str = f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );'
-        self.execquerycommit(createtable)
-        createindex: str = f'CREATE UNIQUE INDEX IF NOT EXISTS {self.args.table}_index ON {self.args.table} ( "filename", "hash" );'
-        self.execquerycommit(createindex)
+        self.execquerycommit(f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );')
 
     def add(self):
         if len(self.args.files) > 0:
@@ -335,7 +332,7 @@ class SQLiteArchive(DBUtility):
             if dupspath.exists():
                 dupspath = dupspath.resolve()
             if dupspath.is_file() and not self.args.nodups:
-                dups = xmltodict.parse(dupspath.read_text())
+                dups = json.loads(dupspath.read_text())
         replaced: int = 0
 
         dbname: str = calcname(self.db, verbose=self.args.verbose)
@@ -388,7 +385,6 @@ class SQLiteArchive(DBUtility):
                         print(query)
 
                 for z in tuple(dups[dbname].values()):
-                    query = str(pathlib.Path(str(query)).resolve())
                     for g in dups[dbname][str(query)]:
                         if query in g:
                             dups[dbname][str(query)].remove(g)

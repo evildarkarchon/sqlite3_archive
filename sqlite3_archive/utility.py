@@ -5,7 +5,7 @@ import json
 import pathlib
 import sqlite3
 import sys
-import xmltodict
+# import xmltodict
 from argparse import Namespace
 from typing import Any, Iterable, List, Tuple, Union
 
@@ -91,12 +91,12 @@ def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
                 break
         if not hide and dupsexist:
             if currentdb and dbname in keylist:
-                print(f"Duplicate Files:\n {xmltodict.unparse(dups[dbname], pretty=True)}")
+                print(f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
             elif not currentdb:
-                print(f"Duplicate files:\n {xmltodict.unparse(dups, pretty=True)}")
+                print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
         if outfile and dupsexist:
             dupspath: pathlib.Path = pathlib.Path(outfile)
-            dupspath.write_text(xmltodict.unparse(dups, pretty=True))
+            dupspath.write_text(json.dumps(dups, indent=4))
 
 
 def calcname(inpath: pathlib.Path, verbose: bool) -> str:
