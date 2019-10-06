@@ -6,7 +6,10 @@ import atexit
 import json
 import pathlib
 import sqlite3
+import xmltodict
 from typing import Any, Dict, List, Tuple, Union
+# from xml.dom.minidom import parseString
+# from xml.etree import cElementTree as ElementTree
 
 from sqlite3_archive.fileinfo import FileInfo
 from sqlite3_archive.utility import (DBUtility, calcname, cleantablename,
@@ -35,7 +38,7 @@ def parse_args() -> argparse.Namespace:
         "dest": "autovacuum",
         "default": 1,
         "type": int,
-        "help": "Sets the automatic vacuum mode. (0 = disabled, 1 = full autovacuum mode, 2 = incremental autovacuum mode"
+        "help": "Sets the automatic vacuum mode. (0 = disabled, 1 = full autovacuum mode, 2 = incremental autovacuum mode)"
     }
     autovacuum_args["choices"] = [0, 1, 2]
 
@@ -114,12 +117,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         dest="dups_file",
         help="Location of the file to store the list of duplicate files to.",
-        default=f"{pathlib.Path.cwd().joinpath('duplicates.json')}")
+        default=f"{pathlib.Path.cwd().joinpath('duplicates.xml')}")
     add.add_argument(
         "--no-dups",
         action="store_true",
         dest="nodups",
-        help="Disables saving the duplicate list as a json file or reading an existing one from an existing file."
+        help="Disables saving the duplicate list as a xml file or reading an existing one from an existing file."
     )
     add.add_argument("--hide-dups",
                      dest="hidedups",
@@ -325,19 +328,23 @@ class SQLiteArchive(DBUtility):
 
         if self.args.table:
             self.schema()
+        
         dups: dict = {}
         if "dups_file" in self.args and self.args.dups_file:
             dupspath: pathlib.Path = pathlib.Path(self.args.dups_file)
             if dupspath.exists():
                 dupspath = dupspath.resolve()
             if dupspath.is_file() and not self.args.nodups:
-                dups = json.loads(dupspath.read_text())
+                dups = xmltodict.parse(dupspath.read_text())
         replaced: int = 0
 
         dbname: str = calcname(self.db, verbose=self.args.verbose)
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
-
+        
+        for i in self.files:
+            dups[dbname][calcname(i, False)] = []
+    
         for i in self.files:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
@@ -376,21 +383,15 @@ class SQLiteArchive(DBUtility):
                         print(query)
                 if query and querylen >= 1:
                     print("duplicate")
-
-                    dups[dbname][str(fullpath)] = str(query)
+                    dups[dbname][str(query)].append(str(fullpath))
                     if self.args.debug or self.args.verbose:
                         print(query)
 
-                def removefromdict():
-                    try:
-                        dups[dbname].pop(z)
-                    except KeyError:
-                        pass
-
-                for z in tuple(dups[dbname].keys()):
+                for z in tuple(dups[dbname].values()):
                     query = str(pathlib.Path(str(query)).resolve())
-                    if query in z:
-                        removefromdict()
+                    for g in dups[dbname][str(query)]:
+                        if query in g:
+                            dups[dbname][str(query)].remove(g)
 
                 if self.args.debug:
                     raise
@@ -407,6 +408,7 @@ class SQLiteArchive(DBUtility):
                     continue
             else:
                 print("done")
+        
         if not self.args.no_atomic:
             print("* Finishing up...", end=' ', flush=True)
             try:
@@ -417,6 +419,10 @@ class SQLiteArchive(DBUtility):
                     raise
             else:
                 print("done")
+        
+        for i in tuple(dups[dbname].keys()):
+            if len(dups[dbname][i]) == 0:
+                dups[dbname].pop(i)
 
         if self.args.replace and not self.args.no_replace_vacuum and replaced > 0 or self.args.vacuum:
             self.compact()
