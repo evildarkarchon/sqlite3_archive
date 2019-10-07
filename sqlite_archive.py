@@ -384,10 +384,10 @@ class SQLiteArchive(DBUtility):
                     if self.args.debug or self.args.verbose:
                         print(query)
 
-                for z in tuple(dups[dbname].values()):
-                    for g in dups[dbname][str(query)]:
-                        if query in g:
-                            dups[dbname][str(query)].remove(g)
+                # for g in dups[dbname][str(query)]:
+                #     if query in g:
+                #         dups[dbname][str(query)].remove(g)
+                dups[dbname][str(query)] = [g for g in dups[dbname][str(query)] if query not in g]
 
                 if self.args.debug:
                     raise
