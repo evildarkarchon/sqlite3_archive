@@ -80,23 +80,24 @@ def globlist(listglob: List, mode: str):
 
 def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
             currentdb: bool):
-    if len(dups[dbname]) == 0:
-            dups.pop(dbname)
-    else:
-        keylist: List = list(dups.keys())
-        dupsexist: bool = False
-        for i in keylist:
-            if len(dups[i]) >= 1:
-                dupsexist = True
-                break
-        if not hide and dupsexist:
-            if currentdb and dbname in keylist:
+    keylist: List = list(dups.keys())
+    dupsexist: bool = False
+    for i in keylist:
+        if len(dups[i]) >= 1:
+            dupsexist = True
+        else:
+            dups.pop(i)
+    if not hide and dupsexist:
+        if currentdb and dbname in keylist:
+            try:
                 print(f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
-            elif not currentdb:
-                print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
-        if outfile and dupsexist:
-            dupspath: pathlib.Path = pathlib.Path(outfile)
-            dupspath.write_text(json.dumps(dups, indent=4))
+            except KeyError:
+                pass
+        else:
+            print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
+    if outfile and dupsexist:
+        dupspath: pathlib.Path = pathlib.Path(outfile)
+        dupspath.write_text(json.dumps(dups, indent=4))
 
 
 def calcname(inpath: pathlib.Path, verbose: bool) -> str:

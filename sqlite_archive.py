@@ -184,7 +184,7 @@ def parse_args() -> argparse.Namespace:
         "-o",
         dest="out",
         type=str,
-        help="Directory to output files to. Defaults to a directory named after the table in the current directory."
+        help="Directory to output files to. Defaults to a directory named after the table in the current directory. WARNING: Any existing files will have their data overwritten."
     )
     extract.add_argument(lowercase_table_args["long"],
                          action=lowercase_table_args["action"],
@@ -522,16 +522,30 @@ class SQLiteArchive(DBUtility):
             try:
                 fileinfo: FileInfo = FileInfo()
                 fileinfo.data = bytes(row["data"])
-                fileinfo.name = self.execquerynocommit(
-                    f"select filename from {self.args.table} where rowid == ?",
-                    values=(str(row["rowid"]), ),
-                    one=True,
-                    decode=True)
-                fileinfo.digest = self.execquerynocommit(
-                    f"select hash from {self.args.table} where rowid == ?",
-                    values=(str(row["rowid"]), ),
-                    one=True,
-                    decode=True)
+                try:
+                    fileinfo.name = self.execquerynocommit(
+                        f"select filename from {self.args.table} where rowid == ?",
+                        values=(str(row["rowid"]), ),
+                        one=True,
+                        decode=True)
+                    fileinfo.digest = self.execquerynocommit(
+                        f"select hash from {self.args.table} where rowid == ?",
+                        values=(str(row["rowid"]), ),
+                        one=True,
+                        decode=True)
+                except IndexError:
+                    fileinfo.name = self.execquerynocommit(
+                        f"select filename from {self.args.table} where pk = ?",
+                        values=(str(row["pk"]), ),
+                        one=True,
+                        decode=True
+                    )
+                    fileinfo.digest = self.execquerynocommit(
+                        f"select hash from {self.args.table} where pk == ?",
+                        values=(str(row["pk"]), ),
+                        one=True,
+                        decode=True
+                    )
 
                 if not fileinfo.verify(fileinfo.digest,
                                        self.args) and not self.args.force:
