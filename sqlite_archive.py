@@ -270,11 +270,12 @@ class SQLiteArchive(DBUtility):
                     self.args.db).resolve() and pathlib.Path(x).is_file()
             ]
             self.files.sort()
-            if not self.args.exclude:
+            if not self.args.exclude or len(self.args.exclude) == 0:
                 self.args.exclude = ["Thumbs.db"]
-            for i in self.files:
-                if str(i) in self.args.exclude:
-                    self.files.remove(i)
+            self.files = [i for i in self.files if str(i) not in self.args.exclude]
+            # for i in self.files:
+            #     if str(i) in self.args.exclude:
+            #         self.files.remove(i)
 
             if self.args.debug or self.args.verbose:
                 print("File List:")
