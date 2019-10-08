@@ -420,9 +420,10 @@ class SQLiteArchive(DBUtility):
             else:
                 print("done")
         
-        for i in tuple(dups[dbname].keys()):
-            if len(dups[dbname][i]) == 0:
-                dups[dbname].pop(i)
+        # for i in tuple(dups[dbname].keys()):
+        #     if len(dups[dbname][i]) == 0:
+        #         dups[dbname].pop(i)
+        dups[dbname] = {h:i for h, i in dups[dbname].items() if len(dups[dbname][h]) > 0}
 
         if self.args.replace and not self.args.no_replace_vacuum and replaced > 0 or self.args.vacuum:
             self.compact()

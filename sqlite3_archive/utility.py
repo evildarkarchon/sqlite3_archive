@@ -84,8 +84,6 @@ def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
     for i in keylist:
         if len(dups[i]) >= 1:
             dupsexist = True
-        else:
-            dups.pop(i)
     if not hide and dupsexist:
         if currentdb:
             try:
