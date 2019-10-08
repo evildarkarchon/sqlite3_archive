@@ -147,7 +147,7 @@ def parse_args() -> argparse.Namespace:
         action="append",
         dest="exclude",
         type=str,
-        help="Name of a file to exclude from the file list (can be specified multiple times)"
+        help="Name of a file to exclude from the file list (can be specified multiple times). Any directories specified are ignored at this time (per directory exclusion is WIP)."
     )
     add.add_argument("--vacuum",
                      action="store_true",
@@ -272,7 +272,11 @@ class SQLiteArchive(DBUtility):
             self.files.sort()
             if not self.args.exclude or len(self.args.exclude) == 0:
                 self.args.exclude = ["Thumbs.db"]
-            self.files = [i for i in self.files if str(i) not in self.args.exclude]
+            self.args.exclude = list(map(pathlib.Path, self.args.exclude))
+            self.args.exclude = [pathlib.Path(i).name for i in self.args.exclude]
+            print(self.args.exclude)
+            print(self.files)
+            self.files = [i for i in self.files if pathlib.Path(i).name not in self.args.exclude]
             # for i in self.files:
             #     if str(i) in self.args.exclude:
             #         self.files.remove(i)
