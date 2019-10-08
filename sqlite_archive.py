@@ -274,7 +274,7 @@ class SQLiteArchive(DBUtility):
             if not self.args.exclude or len(self.args.exclude) == 0:                                # The file exclusion code is currently a WIP.
                 self.args.exclude = ["Thumbs.db"]                                                   # It currently only works based on file names
             self.args.exclude = [pathlib.Path(i).name for i in self.args.exclude]                   # because it strips all directory components from the exclusion list.
-            self.files = [i for i in self.files if pathlib.Path(i).name not in self.args.exclude]   # Also, there may be possibilitys for duplicate entries in the exclusion list
+            self.files = [i for i in self.files if pathlib.Path(i).name not in self.args.exclude]   # Also, there may be possibilitys for duplicate entries in the exclusion list,
                                                                                                     # but it should not have a negative impact 
                                                                                                     # since it only checks to see if the file name is in the list at all.
 
@@ -343,8 +343,9 @@ class SQLiteArchive(DBUtility):
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
         
-        for i in self.files:
-            dups[dbname][calcname(i, False)] = []
+        # for i in self.files:
+        #     dups[dbname][calcname(i, False)] = []
+        dups[dbname] = {calcname(i, False):[] for i in self.files}
     
         for i in self.files:
             if not type(i) == pathlib.Path:
