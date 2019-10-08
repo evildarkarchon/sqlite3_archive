@@ -38,14 +38,13 @@ def infertable(mode: str,
         f = cleantablename(base.name, lower)
 
     if mode == "extract":
-        if files[0]:
-            if files[0] and not out:
-                f = cleantablename(pathlib.Path(files[0]).stem)
-                if pop:
-                    files.pop(0)
-            elif out and not files[0]:
-                f = cleantablename(pathlib.Path(out).name)
-
+        if out:
+            f = cleantablename(pathlib.Path(out).name)
+        
+        if files[0] and not out:
+            f = cleantablename(pathlib.Path(files[0]).stem)
+            if pop:
+                files.pop(0)
     if f:
         return f
     else:
