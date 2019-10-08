@@ -51,10 +51,10 @@ def infertable(mode: str,
         return None
 
 
-def globlist(listglob: List, mode: str):
+def globlist(listglob: List, mode: str = "add"):
     if mode == "extract":
         yield from listglob
-    elif mode == "add":
+    else:
         for a in listglob:
             objtype = type(a)
 
@@ -76,6 +76,12 @@ def globlist(listglob: List, mode: str):
             else:
                 yield from map(pathlib.Path, glob.glob(a, recursive=True))
 
+def globlist2(listglob: List) -> pathlib.Path:
+    for a in listglob:
+        if type(a) == str and "*" in a or pathlib.Path(a).is_dir():
+            yield from [pathlib.Path(i) for i in pathlib.Path(a).rglob("*") if pathlib.Path(i).is_file()]
+        elif pathlib.Path(a).is_file():
+            yield pathlib.Path(a)
 
 def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
             currentdb: bool):
@@ -95,7 +101,6 @@ def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
     if outfile and dupsexist:
         dupspath: pathlib.Path = pathlib.Path(outfile)
         dupspath.write_text(json.dumps(dups, indent=4))
-
 
 def calcname(inpath: pathlib.Path, verbose: bool) -> str:
     parents: List = sorted(inpath.parents)
