@@ -226,7 +226,6 @@ class SQLiteArchive(DBUtility):
 
         # addorcreate: bool = self.args.mode in ("add", "create")
         super().__init__(self.args)
-        self.files: List = []
 
         self.set_journal_and_av(self.args)
 
@@ -445,7 +444,6 @@ class SQLiteArchive(DBUtility):
                 if len(self.args.files) == 0:
                     raise ValueError(
                         "File list is empty when it's not supposed to be.")
-                self.files = self.args.files
         if not self.args.table:
             self.args.table = infertable(mode=self.args.mode,
                                          lower=self.args.lower,
@@ -459,13 +457,13 @@ class SQLiteArchive(DBUtility):
             )
 
         def calcextractquery():
-            fileslen: int = len(self.files)
+            fileslen: int = len(self.args.files)
             if self.args.files and fileslen > 0:
                 if fileslen > 1:
                     questionmarks: Any = '?' * fileslen
                     out = f"select rowid, data from {self.args.table} where filename in ({','.join(questionmarks)}) order by filename asc"
                     # out = f"select rowid, data from {self.args.table} where filename in (?) order by filename asc" # executemany doesn't work on select satements, apparently
-                if self.files and fileslen == 1:
+                if self.args.files and fileslen == 1:
                     out = f"select rowid, data from {self.args.table} where filename == ? order by filename asc"
             else:
                 out = f"select rowid, data from {self.args.table} order by filename asc"
@@ -473,8 +471,8 @@ class SQLiteArchive(DBUtility):
             return out
 
         self.dbcon.text_factory = bytes
-        if not type(self.files) in (list, tuple):
-            raise TypeError("self.files must be a list or tuple")
+        if not type(self.args.files) in (list, tuple):
+            raise TypeError("self.args.files must be a list or tuple")
         if len(
                 tuple(
                     self.execquerynocommit(
@@ -504,17 +502,17 @@ class SQLiteArchive(DBUtility):
         if not outputdir.is_absolute():
             outputdir = outputdir.resolve()
         if self.args.debug or self.args.verbose:
-            print(len(self.files))
-            print(repr(tuple(self.files)))
+            print(len(self.args.files))
+            print(repr(tuple(self.args.files)))
         query: List = calcextractquery()
 
         cursor: Union[sqlite3.Cursor, None] = None
 
-        if self.files and len(self.files) > 0:
+        if self.args.files and len(self.args.files) > 0:
             if self.args.debug or self.args.verbose:
                 print(query)
             cursor = self.execquerynocommit(query,
-                                            self.files,
+                                            self.args.files,
                                             raw=True,
                                             returndata=True)
         else:
