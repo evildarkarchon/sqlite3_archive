@@ -88,7 +88,7 @@ def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
         else:
             dups.pop(i)
     if not hide and dupsexist:
-        if currentdb and dbname in keylist:
+        if currentdb:
             try:
                 print(f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
             except KeyError:
