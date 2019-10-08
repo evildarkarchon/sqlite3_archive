@@ -1,29 +1,29 @@
 {
   "errors": [],
-  "generated_at": "2019-10-06T19:44:56Z",
+  "generated_at": "2019-10-08T04:06:48Z",
   "metrics": {
     ".\\sqlite_archive.py": {
       "CONFIDENCE.HIGH": 0.0,
-      "CONFIDENCE.LOW": 7.0,
+      "CONFIDENCE.LOW": 9.0,
       "CONFIDENCE.MEDIUM": 0.0,
       "CONFIDENCE.UNDEFINED": 0.0,
       "SEVERITY.HIGH": 0.0,
       "SEVERITY.LOW": 0.0,
-      "SEVERITY.MEDIUM": 7.0,
+      "SEVERITY.MEDIUM": 9.0,
       "SEVERITY.UNDEFINED": 0.0,
-      "loc": 521,
+      "loc": 532,
       "nosec": 0
     },
     "_totals": {
       "CONFIDENCE.HIGH": 0.0,
-      "CONFIDENCE.LOW": 7.0,
+      "CONFIDENCE.LOW": 9.0,
       "CONFIDENCE.MEDIUM": 0.0,
       "CONFIDENCE.UNDEFINED": 0.0,
       "SEVERITY.HIGH": 0.0,
       "SEVERITY.LOW": 0.0,
-      "SEVERITY.MEDIUM": 7.0,
+      "SEVERITY.MEDIUM": 9.0,
       "SEVERITY.UNDEFINED": 0.0,
-      "loc": 876,
+      "loc": 887,
       "nosec": 0
     },
     "sqlite3_archive\\fileinfo.py": {
@@ -53,63 +53,35 @@
   },
   "results": [
     {
-      "code": "355                             self.execquerynocommit(\n356                                 f\"select count(distinct filename) from {self.args.table} where filename = ?\",\n357                                 values=(fileinfo.name, ),\n",
+      "code": "360                             self.execquerynocommit(\n361                                 f\"select count(distinct filename) from {self.args.table} where filename = ?\",\n362                                 values=(fileinfo.name, ),\n",
       "filename": ".\\sqlite_archive.py",
       "issue_confidence": "LOW",
       "issue_severity": "MEDIUM",
       "issue_text": "Possible SQL injection vector through string-based query construction.",
-      "line_number": 356,
+      "line_number": 361,
       "line_range": [
-        356
+        361
       ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
       "test_id": "B608",
       "test_name": "hardcoded_sql_expressions"
     },
     {
-      "code": "369                 query = self.execquerynocommit(\n370                     f\"select filename from {self.args.table} where hash == ?\",\n371                     (fileinfo.digest, ))[0][0]\n",
+      "code": "374                 query = self.execquerynocommit(\n375                     f\"select filename from {self.args.table} where hash == ?\",\n376                     (fileinfo.digest, ))[0][0]\n",
       "filename": ".\\sqlite_archive.py",
       "issue_confidence": "LOW",
       "issue_severity": "MEDIUM",
       "issue_text": "Possible SQL injection vector through string-based query construction.",
-      "line_number": 370,
+      "line_number": 375,
       "line_range": [
-        370
+        375
       ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
       "test_id": "B608",
       "test_name": "hardcoded_sql_expressions"
     },
     {
-      "code": "460                     questionmarks: Any = '?' * fileslen\n461                     out = f\"select rowid, data from {self.args.table} where filename in ({','.join(questionmarks)}) order by filename asc\"\n462                     # out = f\"select rowid, data from {self.args.table} where filename in (?) order by filename asc\" # executemany doesn't work on select satements, apparently\n",
-      "filename": ".\\sqlite_archive.py",
-      "issue_confidence": "LOW",
-      "issue_severity": "MEDIUM",
-      "issue_text": "Possible SQL injection vector through string-based query construction.",
-      "line_number": 461,
-      "line_range": [
-        461
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
-      "test_id": "B608",
-      "test_name": "hardcoded_sql_expressions"
-    },
-    {
-      "code": "463                 if self.files and fileslen == 1:\n464                     out = f\"select rowid, data from {self.args.table} where filename == ? order by filename asc\"\n465             else:\n",
-      "filename": ".\\sqlite_archive.py",
-      "issue_confidence": "LOW",
-      "issue_severity": "MEDIUM",
-      "issue_text": "Possible SQL injection vector through string-based query construction.",
-      "line_number": 464,
-      "line_range": [
-        464
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
-      "test_id": "B608",
-      "test_name": "hardcoded_sql_expressions"
-    },
-    {
-      "code": "465             else:\n466                 out = f\"select rowid, data from {self.args.table} order by filename asc\"\n467 \n",
+      "code": "465                     questionmarks: Any = '?' * fileslen\n466                     out = f\"select rowid, data from {self.args.table} where filename in ({','.join(questionmarks)}) order by filename asc\"\n467                     # out = f\"select rowid, data from {self.args.table} where filename in (?) order by filename asc\" # executemany doesn't work on select satements, apparently\n",
       "filename": ".\\sqlite_archive.py",
       "issue_confidence": "LOW",
       "issue_severity": "MEDIUM",
@@ -123,28 +95,84 @@
       "test_name": "hardcoded_sql_expressions"
     },
     {
-      "code": "525                 fileinfo.name = self.execquerynocommit(\n526                     f\"select filename from {self.args.table} where rowid == ?\",\n527                     values=(str(row[\"rowid\"]), ),\n",
+      "code": "468                 if self.files and fileslen == 1:\n469                     out = f\"select rowid, data from {self.args.table} where filename == ? order by filename asc\"\n470             else:\n",
       "filename": ".\\sqlite_archive.py",
       "issue_confidence": "LOW",
       "issue_severity": "MEDIUM",
       "issue_text": "Possible SQL injection vector through string-based query construction.",
-      "line_number": 526,
+      "line_number": 469,
       "line_range": [
-        526
+        469
       ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
       "test_id": "B608",
       "test_name": "hardcoded_sql_expressions"
     },
     {
-      "code": "530                 fileinfo.digest = self.execquerynocommit(\n531                     f\"select hash from {self.args.table} where rowid == ?\",\n532                     values=(str(row[\"rowid\"]), ),\n",
+      "code": "470             else:\n471                 out = f\"select rowid, data from {self.args.table} order by filename asc\"\n472 \n",
       "filename": ".\\sqlite_archive.py",
       "issue_confidence": "LOW",
       "issue_severity": "MEDIUM",
       "issue_text": "Possible SQL injection vector through string-based query construction.",
-      "line_number": 531,
+      "line_number": 471,
       "line_range": [
-        531
+        471
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
+      "test_id": "B608",
+      "test_name": "hardcoded_sql_expressions"
+    },
+    {
+      "code": "531                     fileinfo.name = self.execquerynocommit(\n532                         f\"select filename from {self.args.table} where rowid == ?\",\n533                         values=(str(row[\"rowid\"]), ),\n",
+      "filename": ".\\sqlite_archive.py",
+      "issue_confidence": "LOW",
+      "issue_severity": "MEDIUM",
+      "issue_text": "Possible SQL injection vector through string-based query construction.",
+      "line_number": 532,
+      "line_range": [
+        532
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
+      "test_id": "B608",
+      "test_name": "hardcoded_sql_expressions"
+    },
+    {
+      "code": "536                     fileinfo.digest = self.execquerynocommit(\n537                         f\"select hash from {self.args.table} where rowid == ?\",\n538                         values=(str(row[\"rowid\"]), ),\n",
+      "filename": ".\\sqlite_archive.py",
+      "issue_confidence": "LOW",
+      "issue_severity": "MEDIUM",
+      "issue_text": "Possible SQL injection vector through string-based query construction.",
+      "line_number": 537,
+      "line_range": [
+        537
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
+      "test_id": "B608",
+      "test_name": "hardcoded_sql_expressions"
+    },
+    {
+      "code": "542                     fileinfo.name = self.execquerynocommit(\n543                         f\"select filename from {self.args.table} where pk = ?\",\n544                         values=(str(row[\"pk\"]), ),\n",
+      "filename": ".\\sqlite_archive.py",
+      "issue_confidence": "LOW",
+      "issue_severity": "MEDIUM",
+      "issue_text": "Possible SQL injection vector through string-based query construction.",
+      "line_number": 543,
+      "line_range": [
+        543
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
+      "test_id": "B608",
+      "test_name": "hardcoded_sql_expressions"
+    },
+    {
+      "code": "548                     fileinfo.digest = self.execquerynocommit(\n549                         f\"select hash from {self.args.table} where pk == ?\",\n550                         values=(str(row[\"pk\"]), ),\n",
+      "filename": ".\\sqlite_archive.py",
+      "issue_confidence": "LOW",
+      "issue_severity": "MEDIUM",
+      "issue_text": "Possible SQL injection vector through string-based query construction.",
+      "line_number": 549,
+      "line_range": [
+        549
       ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b608_hardcoded_sql_expressions.html",
       "test_id": "B608",
