@@ -5,7 +5,6 @@ import json
 import pathlib
 import sqlite3
 import sys
-# import xmltodict
 from argparse import Namespace
 from typing import Any, Iterable, List, Tuple, Union
 
@@ -51,7 +50,7 @@ def infertable(mode: str,
         return None
 
 
-def globlist(listglob: List, mode: str = "add"):
+def globlist0(listglob: List, mode: str = "add"):
     if mode == "extract":
         yield from listglob
     else:
@@ -76,9 +75,11 @@ def globlist(listglob: List, mode: str = "add"):
             else:
                 yield from map(pathlib.Path, glob.glob(a, recursive=True))
 
-def globlist2(listglob: List) -> pathlib.Path:
+def globlist(listglob: List) -> Generator:
     for a in listglob:
-        if type(a) == str and "*" in a or pathlib.Path(a).is_dir():
+        if type(a) == str and "*" in a:
+            yield from [pathlib.Path(i) for i in glob.glob(a, recursive=True) if pathlib.Path(i).is_file()]
+        elif pathlib.Path(a).is_dir():
             yield from [pathlib.Path(i) for i in pathlib.Path(a).rglob("*") if pathlib.Path(i).is_file()]
         elif pathlib.Path(a).is_file():
             yield pathlib.Path(a)

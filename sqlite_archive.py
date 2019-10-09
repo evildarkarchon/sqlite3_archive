@@ -6,10 +6,7 @@ import atexit
 import json
 import pathlib
 import sqlite3
-# import xmltodict
 from typing import Any, Dict, List, Tuple, Union
-# from xml.dom.minidom import parseString
-# from xml.etree import cElementTree as ElementTree
 
 from sqlite3_archive.fileinfo import FileInfo
 from sqlite3_archive.utility import (DBUtility, calcname, cleantablename,
@@ -224,7 +221,6 @@ class SQLiteArchive(DBUtility):
             self.args.table = cleantablename(self.args.table,
                                              lower=self.args.lower)
 
-        # addorcreate: bool = self.args.mode in ("add", "create")
         super().__init__(self.args)
 
         self.set_journal_and_av(self.args)
@@ -264,9 +260,9 @@ class SQLiteArchive(DBUtility):
     def add(self):
         if len(self.args.files) > 0:
             self.files: List = [
-                x for x in globlist(self.args.files, self.args.mode)
+                x for x in globlist(self.args.files)
                 if pathlib.Path(x).resolve() != pathlib.Path(
-                    self.args.db).resolve() and pathlib.Path(x).is_file()
+                    self.args.db).resolve()
             ]
             self.files.sort()
             
@@ -343,9 +339,7 @@ class SQLiteArchive(DBUtility):
         dbname: str = calcname(self.db, verbose=self.args.verbose)
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
-        
-        # for i in self.files:
-        #     dups[dbname][calcname(i, False)] = []
+
         dups[dbname] = {calcname(i, False):[] for i in self.files}
     
         for i in self.files:
@@ -390,9 +384,6 @@ class SQLiteArchive(DBUtility):
                     if self.args.debug or self.args.verbose:
                         print(query)
 
-                # for g in dups[dbname][str(query)]:
-                #     if query in g:
-                #         dups[dbname][str(query)].remove(g)
                 dups[dbname][str(query)] = [g for g in dups[dbname][str(query)] if query not in g]
 
                 if self.args.debug:
@@ -421,10 +412,7 @@ class SQLiteArchive(DBUtility):
                     raise
             else:
                 print("done")
-        
-        # for i in tuple(dups[dbname].keys()):
-        #     if len(dups[dbname][i]) == 0:
-        #         dups[dbname].pop(i)
+
         dups[dbname] = {h:i for h, i in dups[dbname].items() if len(dups[dbname][h]) > 0}
 
         if self.args.replace and not self.args.no_replace_vacuum and replaced > 0 or self.args.vacuum:
@@ -437,16 +425,8 @@ class SQLiteArchive(DBUtility):
                     currentdb=self.args.dupscurrent)
 
     def extract(self):
-        for i in self.args.files:
-            if "*" in i:
-                if self.args.verbose or self.args.debug:
-                    print(
-                        f"Removing {i} from file list because it contains a glob character."
-                    )
-                self.args.files.remove(i)
-                if len(self.args.files) == 0:
-                    raise ValueError(
-                        "File list is empty when it's not supposed to be.")
+        if self.args.files:
+            self.args.files = [i for i in self.args.files if "*" not in i]
         if not self.args.table:
             self.args.table = infertable(mode=self.args.mode,
                                          lower=self.args.lower,
