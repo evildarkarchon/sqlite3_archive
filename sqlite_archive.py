@@ -326,21 +326,19 @@ class SQLiteArchive(DBUtility):
 
         if self.args.table:
             self.schema()
-        
+        dbname: str = calcname(self.db, verbose=self.args.verbose)
         dups: dict = {}
+        dups[dbname] = {calcname(i, False):[] for i in self.files}
         if "dups_file" in self.args and self.args.dups_file:
             dupspath: pathlib.Path = pathlib.Path(self.args.dups_file)
             if dupspath.exists():
                 dupspath = dupspath.resolve()
             if dupspath.is_file() and not self.args.nodups:
-                dups = json.loads(dupspath.read_text())
+                dups.update(json.loads(dupspath.read_text()))
         replaced: int = 0
 
-        dbname: str = calcname(self.db, verbose=self.args.verbose)
         if dbname not in list(dups.keys()):
             dups[dbname] = {}
-
-        dups[dbname] = {calcname(i, False):[] for i in self.files}
     
         for i in self.files:
             if not type(i) == pathlib.Path:
@@ -414,6 +412,8 @@ class SQLiteArchive(DBUtility):
                 print("done")
 
         dups[dbname] = {h:i for h, i in dups[dbname].items() if len(dups[dbname][h]) > 0}
+        if len(dups[dbname]) == 0:
+            dups.pop(dbname)
 
         if self.args.replace and not self.args.no_replace_vacuum and replaced > 0 or self.args.vacuum:
             self.compact()
