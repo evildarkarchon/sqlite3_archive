@@ -267,12 +267,10 @@ class SQLiteArchive(DBUtility):
             self.files.sort()
             
             """The file exclusion code is currently a WIP. It currently only works based on file names
-            because it strips all directory components from the exclusion list.
-            Also, there may be possibilitys for duplicate entries in the exclusion list,
-            but it should not have a negative impact since it only checks to see if the file name is in the list at all."""
+            because it strips all directory components from the exclusion list."""
             if not self.args.exclude or len(self.args.exclude) == 0:
                 self.args.exclude = ["Thumbs.db"]
-            self.args.exclude = [pathlib.Path(i).name for i in self.args.exclude]
+            self.args.exclude = [pathlib.Path(i).name for i in set(self.args.exclude)]
             self.files = [i for i in self.files if pathlib.Path(i).name not in self.args.exclude]
 
             if self.args.debug or self.args.verbose:
@@ -329,15 +327,19 @@ class SQLiteArchive(DBUtility):
         
         dbname: str = calcname(self.db, verbose=self.args.verbose)
         dups: dict = {}
-        dups[dbname] = {calcname(i, False):[] for i in self.files}
+        dups[dbname] = {}
         if "dups_file" in self.args and self.args.dups_file:
             dupspath: pathlib.Path = pathlib.Path(self.args.dups_file).resolve()
             if dupspath.is_file() and not self.args.nodups:
                 dups.update(json.loads(dupspath.read_text()))
         replaced: int = 0
 
-        if dbname not in list(dups.keys()):
-            dups[dbname] = {}
+        if dbname in list(dups.keys()):
+            dups[dbname] = {calcname(i, False):[] for i in self.files if i not in dups[dbname]}
+
+        if self.args.verbose or self.args.debug:
+            print("Dups Dict:")
+            print(dups)
     
         for i in self.files:
             if not type(i) == pathlib.Path:
