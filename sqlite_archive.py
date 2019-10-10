@@ -433,6 +433,7 @@ class SQLiteArchive(DBUtility):
 
     def extract(self):
         if self.args.files:
+            self.args.files = list(set(self.args.files))
             self.args.files = [i for i in self.args.files if "*" not in i]
         if not self.args.table:
             self.args.table = infertable(mode=self.args.mode,
