@@ -103,7 +103,7 @@ def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
         dupspath: pathlib.Path = pathlib.Path(outfile)
         dupspath.write_text(json.dumps(dups, indent=4))
 
-def calcname(inpath: pathlib.Path, verbose: bool) -> str:
+def calcname(inpath: pathlib.Path, verbose: bool = False) -> str:
     parents: List = sorted(inpath.parents)
     parentslen: int = len(parents)
     if verbose:

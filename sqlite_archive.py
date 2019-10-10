@@ -335,7 +335,7 @@ class SQLiteArchive(DBUtility):
         replaced: int = 0
 
         if dbname in list(dups.keys()):
-            dups[dbname] = {calcname(i, False):[] for i in self.files if i not in dups[dbname]}
+            dups[dbname] = {calcname(i):[] for i in self.files if i not in dups[dbname]}
 
         if self.args.verbose or self.args.debug:
             print("Dups Dict:")
