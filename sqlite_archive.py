@@ -382,8 +382,7 @@ class SQLiteArchive(DBUtility):
                     try:
                         dups[dbname][str(query)].append(str(fullpath))
                     except KeyError:
-                        if not str(query) in list(dups[dbname].keys()):
-                            dups[dbname][str(query)] = [str(fullpath)]
+                        dups[dbname][str(query)] = [str(fullpath)]
                     if self.args.debug or self.args.verbose:
                         print(query)
                 
