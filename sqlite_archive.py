@@ -379,10 +379,16 @@ class SQLiteArchive(DBUtility):
                         print(query)
                 if query and querylen >= 1:
                     print("duplicate")
-                    dups[dbname][str(query)].append(str(fullpath))
+                    try:
+                        dups[dbname][str(query)].append(str(fullpath))
+                    except KeyError:
+                        if not str(query) in list(dups[dbname].keys()):
+                            dups[dbname][str(query)] = [str(fullpath)]
+                        else:
+                            dups[dbname][str(query)].append(str(fullpath))
                     if self.args.debug or self.args.verbose:
                         print(query)
-
+                
                 dups[dbname][str(query)] = [g for g in dups[dbname][str(query)] if query not in g]
 
                 if self.args.debug:
