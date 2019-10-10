@@ -75,7 +75,7 @@ def globlist0(listglob: List, mode: str = "add"):
             else:
                 yield from map(pathlib.Path, glob.glob(a, recursive=True))
 
-def globlist(listglob: List) -> Generator:
+def globlist(listglob: Iterable) -> Generator:
     for a in listglob:
         if type(a) == str and "*" in a:
             yield from [pathlib.Path(i) for i in glob.glob(a, recursive=True) if pathlib.Path(i).is_file()]

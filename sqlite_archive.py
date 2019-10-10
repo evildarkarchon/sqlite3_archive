@@ -221,6 +221,8 @@ class SQLiteArchive(DBUtility):
             self.args.table = cleantablename(self.args.table,
                                              lower=self.args.lower)
 
+        self.args.files = list(set(self.args.files))
+
         super().__init__(self.args)
 
         self.set_journal_and_av(self.args)
