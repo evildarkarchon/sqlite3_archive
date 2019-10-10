@@ -272,7 +272,8 @@ class SQLiteArchive(DBUtility):
             because it strips all directory components from the exclusion list."""
             if not self.args.exclude or len(self.args.exclude) == 0:
                 self.args.exclude = ["Thumbs.db"]
-            self.args.exclude = [pathlib.Path(i).name for i in set(self.args.exclude)]
+            self.args.exclude = list(set(self.args.exclude))
+            self.args.exclude = [pathlib.Path(i).name for i in self.args.exclude]
             self.files = [i for i in self.files if pathlib.Path(i).name not in self.args.exclude]
 
             if self.args.debug or self.args.verbose:
