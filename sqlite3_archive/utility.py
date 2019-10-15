@@ -49,33 +49,9 @@ def infertable(mode: str,
     else:
         return None
 
-
-def globlist0(listglob: List, mode: str = "add"):
-    if mode == "extract":
-        yield from listglob
-    else:
-        for a in listglob:
-            objtype = type(a)
-
-            if objtype is str and "*" in a:
-                yield from map(pathlib.Path, glob.glob(a, recursive=True))
-            elif objtype is pathlib.Path and a.is_file(
-            ) or objtype is str and pathlib.Path(a).is_file():
-                if objtype is str:
-                    yield pathlib.Path(a)
-                elif objtype is pathlib.Path:
-                    yield a
-                else:
-                    continue
-            elif objtype is str and "*" not in a and pathlib.Path(a).is_file():
-                yield pathlib.Path(a)
-            elif objtype is str and "*" not in a and pathlib.Path(
-                    a).is_dir() or objtype is pathlib.Path and a.is_dir():
-                yield from pathlib.Path(a).rglob("*")
-            else:
-                yield from map(pathlib.Path, glob.glob(a, recursive=True))
-
-def globlist(listglob: Iterable) -> Generator:
+def globlist(listglob: Union[Iterable, AnyStr]) -> Generator:
+    if type(listglob) is str:
+        listglob = [listglob]
     listglob = list(set(listglob))
     for a in listglob:
         if type(a) == str and "*" in a:
@@ -162,22 +138,20 @@ class DBUtility:
                           ) -> Union[List[Any], sqlite3.Cursor, None]:
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
+
         output: Any = None
-        returnlist = ("select", "SELECT", "Select")
-        if (any(i in query for i in returnlist)
-                and returndata is False) or returndata is True:
+
+        if returndata is True:
             if values:
                 output = self.dbcon.execute(query, values)
             else:
                 output = self.dbcon.execute(query)
 
             if one:
-                _out = output.fetchone()[0]
-                if type(_out) is bytes and decode:
-                    _out = _out.decode(
-                        sys.stdout.encoding
-                    ) if sys.stdout.encoding else _out.decode("utf-8")
-                return _out
+                out = output.fetchone()[0]
+                if type(out) is bytes and decode:
+                    out = out.decode(sys.stdout.encoding) if sys.stdout.encoding else out.decode("utf-8")
+                return out
             elif raw:
                 return output
             else:
@@ -192,7 +166,7 @@ class DBUtility:
     def execquerycommit(self, query: str, values: Iterable[Any] = None):
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
-        if values and type(values) in (list, tuple):
+        if values:
             try:
                 self.dbcon.execute(query, values)
             except Exception:
@@ -235,9 +209,7 @@ class DBUtility:
             if one:
                 _out = output.fetchone()[0]
                 if type(_out) is bytes and decode:
-                    _out = _out.decode(
-                        sys.stdout.encoding
-                    ) if sys.stdout.encoding else _out.decode("utf-8")
+                    _out = _out.decode(sys.stdout.encoding) if sys.stdout.encoding else _out.decode("utf-8")
                 print(output, flush=True)
                 return _out
             elif raw:
@@ -253,17 +225,14 @@ class DBUtility:
     def set_journal_and_av(self, args: Namespace):
         if args.debug:
             print("function run")
-        journal_mode = self.execquerynocommit("PRAGMA journal_mode;",
-                                              one=True,
-                                              returndata=True)
+        journal_mode = self.execquerynocommit("PRAGMA journal_mode;", one=True, returndata=True)
 
         def setwal() -> Union[bool, None]:
-            if args.debug:
+            if args.debug or args.verbose:
                 print("wal run")
             try:
                 self.execquerynocommit("PRAGMA journal_mode=wal;")
-                new_journal_mode = self.execquerynocommit(
-                    "PRAGMA journal_mode;", one=True, returndata=True)
+                new_journal_mode = self.execquerynocommit("PRAGMA journal_mode;", one=True, returndata=True)
                 if args.verbose or args.debug:
                     print(journal_mode)
                     print(new_journal_mode)
@@ -279,8 +248,7 @@ class DBUtility:
         def setdel() -> Union[bool, None]:
             try:
                 self.execquerynocommit("PRAGMA journal_mode=delete;")
-                new_journal_mode = self.execquerynocommit(
-                    "PRAGMA journal_mode;", one=True, returndata=True)
+                new_journal_mode = self.execquerynocommit("PRAGMA journal_mode;", one=True, returndata=True)
                 if new_journal_mode != journal_mode:
                     return True
                 else:
@@ -290,18 +258,14 @@ class DBUtility:
             return None
 
         def setav() -> bool:
-            avstate = self.execquerynocommit("PRAGMA auto_vacuum;",
-                                             one=True,
-                                             returndata=True)
+            avstate = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
             avstate2 = None
             notchanged = "autovacuum mode not changed"
             if args.verbose or args.debug:
                 print(f"current autovacuum mode: {avstate}")
             if args.autovacuum and args.autovacuum == 1 and not avstate == 1:
                 self.execquerynocommit("PRAGMA auto_vacuum = 1")
-                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;",
-                                                  one=True,
-                                                  returndata=True)
+                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
                 if not args.mode == "compact" and avstate2 == 1:
                     return True
                 else:
@@ -312,9 +276,7 @@ class DBUtility:
                     print("full auto_vacuum")
             elif args.autovacuum and args.autovacuum == 2 and not avstate == 2:
                 self.execquerynocommit("PRAGMA auto_vacuum = 2;")
-                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;",
-                                                  one=True,
-                                                  returndata=True)
+                avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
                 if not args.mode == "compact" and avstate2 == 2:
                     return True
                 else:
@@ -325,9 +287,7 @@ class DBUtility:
                     print("incremental auto_vacuum")
             elif args.autovacuum and args.autovacuum == 0 and not avstate == 0:
                 self.execquerynocommit("PRAGMA auto_vacuum = 0;")
-                avstate2 = self.execquerynocommit("PRAGMA_auto_vacuum;",
-                                                  one=True,
-                                                  returndata=True)
+                avstate2 = self.execquerynocommit("PRAGMA_auto_vacuum;", one=True, returndata=True)
                 if not args.mode == "compact" and avstate2 == 0:
                     return True
                 else:
