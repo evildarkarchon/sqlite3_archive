@@ -361,9 +361,7 @@ class SQLiteArchive(DBUtility):
                     else:
                         insert()
             except sqlite3.IntegrityError:
-                query = self.execquerynocommit(
-                    f"select filename from {self.args.table} where hash == ?",
-                    (fileinfo.digest, ), returndata=True)[0][0]
+                query = self.execquerynocommit(f"select filename from {self.args.table} where hash == ?", (fileinfo.digest, ), returndata=True)[0][0]
                 querytype: str = type(query)
                 querylen: int = len(query)
                 if self.args.debug or self.args.verbose:
