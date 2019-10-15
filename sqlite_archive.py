@@ -349,6 +349,7 @@ class SQLiteArchive(DBUtility):
                             self.execquerynocommit(
                                 f"select count(distinct filename) from {self.args.table} where filename = ?",
                                 values=(fileinfo.name, ),
+                                returndata=True,
                                 one=True)[0])
                         if self.args.debug or self.args.verbose:
                             print(exists)
@@ -362,7 +363,7 @@ class SQLiteArchive(DBUtility):
             except sqlite3.IntegrityError:
                 query = self.execquerynocommit(
                     f"select filename from {self.args.table} where hash == ?",
-                    (fileinfo.digest, ))[0][0]
+                    (fileinfo.digest, ), returndata=True)[0][0]
                 querytype: str = type(query)
                 querylen: int = len(query)
                 if self.args.debug or self.args.verbose:
