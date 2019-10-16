@@ -16,3 +16,4 @@ __pycache__
 **/*.xml
 **/*.pickle
 **/*.egg-info
+!test.py
