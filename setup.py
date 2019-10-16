@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
-import sqlite_archive
+import src.sqlite_archive
 setup(
-    name="sqlitearchive",
+    name="sqlite_archive",
     packages=find_packages('src'),
     package_dir={'':'src'},
     version='1.0',
