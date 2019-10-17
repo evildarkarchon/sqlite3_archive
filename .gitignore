@@ -17,3 +17,5 @@ __pycache__
 **/*.pickle
 **/*.egg-info
 !test.py
+**/*.whl
+**/*.egg
