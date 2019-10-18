@@ -27,14 +27,17 @@ class DBUtility:
 
     def execquerynocommit(self,
                           query: str,
-                          values: Iterable[Any] = None,
+                          values: Union[Iterable[Any], str] = None,
                           one: bool = False,
                           raw: bool = False,
                           returndata = False,
                           decode: bool = False
                           ) -> Union[List[Any], sqlite3.Cursor, None]:
         if values and type(values) not in (list, tuple):
-            raise TypeError("Values argument must be a list or tuple.")
+            if type(values) is str:
+                values = (values,)
+            else:
+                raise TypeError("Values argument must be a list or tuple.")
 
         output: Any = None
 
@@ -62,7 +65,10 @@ class DBUtility:
 
     def execquerycommit(self, query: str, values: Iterable[Any] = None):
         if values and type(values) not in (list, tuple):
-            raise TypeError("Values argument must be a list or tuple.")
+            if type(values) is str:
+                values = (values,)
+            else:
+                raise TypeError("Values argument must be a list or tuple.")
         if values:
             try:
                 self.dbcon.execute(query, values)
@@ -78,9 +84,12 @@ class DBUtility:
             else:
                 self.dbcon.commit()
 
-    def execmanycommit(self, query: str, values: Iterable[Any]):
+    def execmanycommit(self, query: str, values: Union[Iterable[Any], str]):
         if values and type(values) not in (list, tuple):
-            raise TypeError("Values argument must be a list or tuple.")
+            if type(values) is str:
+                values = (values,)
+            else:
+                raise TypeError("Values argument must be a list or tuple.")
 
         try:
             self.dbcon.executemany(query, values)
@@ -91,12 +100,17 @@ class DBUtility:
 
     def execquerymanynocommit(self,
                               query: str,
-                              values: Iterable[Any],
+                              values: Union[Iterable[Any], str],
                               one: bool = False,
                               raw: bool = False,
                               returndata = False,
                               decode: bool = False
                               ) -> Union[List[Any], sqlite3.Cursor, None]:
+        if values and type(values) not in (list, tuple):
+            if type(values) is str:
+                values = (values,)
+            else:
+                raise TypeError("Values argument must be a list or tuple.")
         output: Any = self.dbcon.cursor()
         returnlist = ("select", "SELECT", "Select")
         if (any(i in query for i in returnlist)
