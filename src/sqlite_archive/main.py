@@ -12,6 +12,8 @@ def main():
         sqlitearchive.extract()
     elif sqlitearchive.args.mode == 'add':
         sqlitearchive.add()
+    elif sqlitearchive.args.mode == 'upgrade':
+        sqlitearchive.upgrade()
 
 if __name__ == "__main__":
     main()

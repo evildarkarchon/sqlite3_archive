@@ -193,5 +193,9 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Files to be extracted from the SQLite Database. Leaving this empty will extract all files from the specified table."
     )
+    upgrade: argparse.ArgumentParser = subparsers.add_parser(
+        'upgrade',
+        help="This is a placeholder argument but will be used if there are any schema upgrades.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     return parser.parse_args()

@@ -365,3 +365,6 @@ class SQLiteArchive(utility.DBUtility):
             raise
         else:
             print("done")
+    def upgrade(self):
+        print("This is a placeholder function for now.")
+        # self.compact()
