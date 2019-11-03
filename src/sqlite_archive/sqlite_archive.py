@@ -11,6 +11,8 @@ from argparse import Namespace
 from fileinfo import fileinfo
 from utility import files, parse_args, table, utility
 
+from .imageproc import imageproc
+
 
 class SQLiteArchive(utility.DBUtility):
     def __init__(self):

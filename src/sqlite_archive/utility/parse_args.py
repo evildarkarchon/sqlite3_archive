@@ -137,6 +137,18 @@ def parse_args() -> argparse.Namespace:
                      action="store_true",
                      dest="vacuum",
                      help="Run VACUUM at the end.")
+    add.add_argument("--convert-webp",
+                     action="store_true",
+                     dest="webp",
+                     help="Convert any image files to webp")
+    add.add_argument("--webp-compression-level",
+                     dest="compression_level",
+                     default=80,
+                     help="Compression level for WebP conversion, (0-100, lower number means smaller files, but lower quality and vice versa.")
+    add.add_argument("--webp-lossless",
+                     dest="lossless",
+                     action="store_true",
+                     help="Convert image to a lossless webp image.")
     add.add_argument(files_args[0],
                      nargs=files_args[1],
                      type=str,
