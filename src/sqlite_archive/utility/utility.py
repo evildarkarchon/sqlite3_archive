@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pathlib
 import sqlite3
 import sys
@@ -154,7 +152,6 @@ class DBUtility:
             except sqlite3.DatabaseError:
                 print("something went wrong.")
                 return False
-            return None
 
         def setdel() -> Union[bool, None]:
             try:
@@ -166,7 +163,6 @@ class DBUtility:
                     return False
             except sqlite3.DatabaseError:
                 return False
-            return None
 
         def setav() -> bool:
             avstate = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
@@ -177,37 +173,37 @@ class DBUtility:
             if args.autovacuum and args.autovacuum == 1 and not avstate == 1:
                 self.execquerynocommit("PRAGMA auto_vacuum = 1")
                 avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
+                if args.verbose or args.debug:
+                    print("full auto_vacuum")
                 if not args.mode == "compact" and avstate2 == 1:
                     return True
                 else:
                     if avstate2 != 1 and avstate != 1 and args.verbose or args.debug:
                         print(notchanged)
                     return False
-                if args.verbose or args.debug:
-                    print("full auto_vacuum")
+                
             elif args.autovacuum and args.autovacuum == 2 and not avstate == 2:
                 self.execquerynocommit("PRAGMA auto_vacuum = 2;")
                 avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
+                if args.verbose or args.debug:
+                    print("incremental auto_vacuum")
                 if not args.mode == "compact" and avstate2 == 2:
                     return True
                 else:
                     if avstate2 != 2 and avstate != 2 and args.verbose or args.debug:
                         print(notchanged)
                     return False
-                if args.verbose or args.debug:
-                    print("incremental auto_vacuum")
             elif args.autovacuum and args.autovacuum == 0 and not avstate == 0:
                 self.execquerynocommit("PRAGMA auto_vacuum = 0;")
                 avstate2 = self.execquerynocommit("PRAGMA_auto_vacuum;", one=True, returndata=True)
+                if args.verbose or args.debug:
+                    print("auto_vacuum disabled")
                 if not args.mode == "compact" and avstate2 == 0:
                     return True
                 else:
                     if avstate2 != 0 and avstate != 0 and args.verbose or args.debug:
                         print(notchanged)
                     return False
-                if args.verbose or args.debug:
-                    print("auto_vacuum disabled")
-            return False
 
         needsvacuum: Union[bool, None] = False
         if "autovacuum" in args and args.autovacuum:

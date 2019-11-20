@@ -3,7 +3,7 @@ import pathlib
 from typing import Union
 
 def cleantablename(instring: str, lower: bool = False) -> str:
-    out = instring.replace(".", "_").replace(
+    out: str = instring.replace(".", "_").replace(
         ' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace(
             '\\', '_').replace('-', '_').replace('#', '')
     if lower:
