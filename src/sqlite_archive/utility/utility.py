@@ -31,11 +31,11 @@ class DBUtility:
                           returndata = False,
                           decode: bool = False
                           ) -> Union[List[Any], sqlite3.Cursor, None]:
-        if values and type(values) not in (list, tuple):
-            if type(values) is str:
+        if values and isinstance(values, (list, tuple, str)):
+            if isinstance(values, str):
                 values = (values,)
-            else:
-                raise TypeError("Values argument must be a list or tuple.")
+        else:
+            raise TypeError("Values argument must be a string, list or tuple.")
 
         output: Any = None
 
@@ -47,7 +47,7 @@ class DBUtility:
 
             if one:
                 out = output.fetchone()[0]
-                if type(out) is bytes and decode:
+                if isinstance(out, bytes) and decode:
                     out = out.decode(sys.stdout.encoding) if sys.stdout.encoding else out.decode("utf-8")
                 return out
             elif raw:
@@ -62,11 +62,11 @@ class DBUtility:
             return None
 
     def execquerycommit(self, query: str, values: Iterable[Any] = None):
-        if values and type(values) not in (list, tuple):
-            if type(values) is str:
+        if values and isinstance(values, (str, list, tuple)):
+            if isinstance(values, str):
                 values = (values,)
             else:
-                raise TypeError("Values argument must be a list or tuple.")
+                raise TypeError("Values argument must be a string, list or tuple.")
         if values:
             try:
                 self.dbcon.execute(query, values)
@@ -83,11 +83,11 @@ class DBUtility:
                 self.dbcon.commit()
 
     def execmanycommit(self, query: str, values: Union[Iterable[Any], str]):
-        if values and type(values) not in (list, tuple):
-            if type(values) is str:
+        if values and isinstance(values, (str, list, tuple)):
+            if isinstance(values, str):
                 values = (values,)
             else:
-                raise TypeError("Values argument must be a list or tuple.")
+                raise TypeError("Values argument must be a string, list or tuple.")
 
         try:
             self.dbcon.executemany(query, values)
@@ -104,8 +104,8 @@ class DBUtility:
                               returndata = False,
                               decode: bool = False
                               ) -> Union[List[Any], sqlite3.Cursor, None]:
-        if values and type(values) not in (list, tuple):
-            if type(values) is str:
+        if values and isinstance(values, (str, list, tuple)):
+            if isinstance(values, str):
                 values = (values,)
             else:
                 raise TypeError("Values argument must be a list or tuple.")
@@ -117,7 +117,7 @@ class DBUtility:
 
             if one:
                 _out = output.fetchone()[0]
-                if type(_out) is bytes and decode:
+                if isinstance(_out, bytes) and decode:
                     _out = _out.decode(sys.stdout.encoding) if sys.stdout.encoding else _out.decode("utf-8")
                 print(output, flush=True)
                 return _out

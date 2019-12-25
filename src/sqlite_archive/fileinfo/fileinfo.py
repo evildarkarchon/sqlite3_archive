@@ -10,6 +10,7 @@ class FileInfo:
     name: str = ''
     data: bytes = b''
     digest: str = ''
+    mtime: int = 0
 
     def __post_init__(self):
         path: Union[pathlib.Path, None] = None
@@ -17,8 +18,11 @@ class FileInfo:
             path = pathlib.Path(self.name)
             if path.exists():
                 path = path.resolve()
-        if path and path.is_file() and not self.data:
-            self.data = path.read_bytes()
+        if path and path.is_file():
+            if not self.data:
+                self.data = path.read_bytes()
+            if not self.mtime:
+                self.mtime = path.stat().st_mtime_ns
         if self.data and not self.digest:
             self.digest = self.calculatehash()
 

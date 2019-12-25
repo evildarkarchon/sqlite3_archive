@@ -57,7 +57,7 @@ class SQLiteArchive(utility.DBUtility):
             print("done")
 
     def schema(self):
-        self.execquerycommit(f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );')
+        self.execquerycommit(f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, "mtime" INTEGER NOT NULL, PRIMARY KEY("hash") );')
 
     def add(self):
         if len(self.args.files) > 0:
@@ -83,7 +83,7 @@ class SQLiteArchive(utility.DBUtility):
 
         def insert():
             query: str = f"insert into {self.args.table} (filename, data, hash) values (?, ?, ?)"
-            values: Tuple = (info.name, info.data, info.digest)
+            values: Tuple = (info.name, info.data, info.digest, info.mtime)
             if self.args.no_atomic:
                 print(f"* Adding {info.name} to {self.args.table}...",
                       end=' ',
@@ -98,7 +98,7 @@ class SQLiteArchive(utility.DBUtility):
 
         def replace():
             query: str = f"replace into {self.args.table} (filename, data, hash) values (?, ?, ?)"
-            values: Tuple = (info.name, info.data, info.digest)
+            values: Tuple = (info.name, info.data, info.digest, info.mtime)
             if self.args.no_atomic:
                 print(
                     f"* Replacing {info.name}'s data in {self.args.table} with specified file's data...",
@@ -367,4 +367,12 @@ class SQLiteArchive(utility.DBUtility):
             print("done")
     def upgrade(self):
         print("This is a placeholder function for now.")
+        # tinfo = self.execquerynocommit(f'pragma table_info({self.args.table})', returndata=True)
+        # columnpresent = False
+        # while tinfo and columnpresent == False:
+        #     if len(tinfo) == 0:
+        #         break
+        #     for i in tinfo:
+        #         if "placeholder" in i["name"]:
+        #             columnpresent = True
         # self.compact()

@@ -5,11 +5,11 @@ import pathlib
 from typing import Any, AnyStr, Generator, Iterable, List, Tuple, Union
 
 def globlist(listglob: Union[Iterable, AnyStr]) -> Generator:
-    if type(listglob) is str:
+    if isinstance(listglob, str):
         listglob = [listglob]
     listglob = list(set(listglob))
     for a in listglob:
-        if type(a) == str and "*" in a:
+        if isinstance(a, str) and "*" in a:
             yield from [pathlib.Path(i) for i in glob.glob(a, recursive=True) if pathlib.Path(i).is_file()]
         elif pathlib.Path(a).is_dir():
             yield from [pathlib.Path(i) for i in pathlib.Path(a).rglob("*") if pathlib.Path(i).is_file()]
