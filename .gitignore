@@ -19,3 +19,4 @@ __pycache__
 !test.py
 **/*.whl
 **/*.egg
+**/*.sqlite
