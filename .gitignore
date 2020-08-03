@@ -15,8 +15,5 @@ __pycache__
 !bandit_baseline.json
 **/*.xml
 **/*.pickle
-**/*.egg-info
-!test.py
-**/*.whl
-**/*.egg
-**/*.sqlite
+*.sqlite
+sqlite_archive.egg-info

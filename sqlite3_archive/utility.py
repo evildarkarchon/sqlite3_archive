@@ -1,8 +1,113 @@
+from __future__ import annotations
+
+import glob
+import json
 import pathlib
 import sqlite3
 import sys
 from argparse import Namespace
 from typing import Any, Iterable, List, Tuple, Union
+
+
+def cleantablename(instring: str, lower: bool = False) -> str:
+    out = instring.replace(".", "_").replace(
+        ' ', '_').replace("'", '_').replace(",", "").replace("/", '_').replace(
+            '\\', '_').replace('-', '_').replace('#', '')
+    if lower:
+        return out.lower()
+    else:
+        return out
+
+
+def infertable(mode: str,
+               lower: bool,
+               files: list,
+               out: str = None,
+               pop: bool = False) -> Union[str, None]:
+    if mode == "add":
+        base: pathlib.Path = pathlib.Path(files[0]).resolve()
+
+    if not base.exists():
+        return None
+
+    f: str = str()
+    if mode == "add" and base.is_file():
+        f = cleantablename(base.parent.name, lower)
+    elif mode == "add" and base.is_dir():
+        f = cleantablename(base.name, lower)
+
+    if mode == "extract":
+        if out:
+            f = cleantablename(pathlib.Path(out).name)
+        
+        if files[0] and not out:
+            f = cleantablename(pathlib.Path(files[0]).stem)
+            if pop:
+                files.pop(0)
+    if f:
+        return f
+    else:
+        return None
+
+def globlist(listglob: Union[Iterable, AnyStr]) -> Generator:
+    if type(listglob) is str:
+        listglob = [listglob]
+    listglob = list(set(listglob))
+    for a in listglob:
+        if type(a) == str and "*" in a:
+            yield from [pathlib.Path(i) for i in glob.glob(a, recursive=True) if pathlib.Path(i).is_file()]
+        elif pathlib.Path(a).is_dir():
+            yield from [pathlib.Path(i) for i in pathlib.Path(a).rglob("*") if pathlib.Path(i).is_file()]
+        elif pathlib.Path(a).is_file():
+            yield pathlib.Path(a)
+
+def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
+            currentdb: bool):
+    keylist: List = list(dups.keys())
+    dupsexist: bool = False
+    for i in keylist:
+        if len(dups[i]) >= 1:
+            dupsexist = True
+    if not hide and dupsexist:
+        if currentdb:
+            try:
+                print(f"Duplicate Files:\n {json.dumps(dups[dbname], indent=4)}")
+            except KeyError:
+                pass
+        else:
+            print(f"Duplicate files:\n {json.dumps(dups, indent=4)}")
+    if outfile and dupsexist:
+        dupspath: pathlib.Path = pathlib.Path(outfile)
+        dupspath.write_text(json.dumps(dups, indent=4))
+
+def calcname(inpath: pathlib.Path, verbose: bool = False) -> str:
+    parents: List = sorted(inpath.parents)
+    parentslen: int = len(parents)
+    if verbose:
+        print(parents)
+
+    def oldbehavior() -> str:
+        if verbose:
+            print("Using old name calculation behavior")
+        if parentslen > 2:
+            return str(inpath.relative_to(inpath.parent.parent))
+        else:
+            return str(inpath.relative_to(inpath.parent))
+
+    try:
+        if parentslen == 1:
+            return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
+        elif inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
+            return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
+        elif not inpath.is_absolute() and parentslen > 1:
+            return str(inpath.relative_to(parents[1]))
+        else:
+            return oldbehavior()
+    except (ValueError, IndexError):
+        try:
+            return oldbehavior()
+        except Exception:
+            raise
 
 
 class DBUtility:
@@ -25,17 +130,14 @@ class DBUtility:
 
     def execquerynocommit(self,
                           query: str,
-                          values: Union[Iterable[Any], str] = None,
+                          values: Iterable[Any] = None,
                           one: bool = False,
                           raw: bool = False,
                           returndata = False,
                           decode: bool = False
                           ) -> Union[List[Any], sqlite3.Cursor, None]:
-        if values and isinstance(values, (list, tuple, str)):
-            if isinstance(values, str):
-                values = (values,)
-        else:
-            raise TypeError("Values argument must be a string, list or tuple.")
+        if values and type(values) not in (list, tuple):
+            raise TypeError("Values argument must be a list or tuple.")
 
         output: Any = None
 
@@ -47,7 +149,7 @@ class DBUtility:
 
             if one:
                 out = output.fetchone()[0]
-                if isinstance(out, bytes) and decode:
+                if type(out) is bytes and decode:
                     out = out.decode(sys.stdout.encoding) if sys.stdout.encoding else out.decode("utf-8")
                 return out
             elif raw:
@@ -62,11 +164,8 @@ class DBUtility:
             return None
 
     def execquerycommit(self, query: str, values: Iterable[Any] = None):
-        if values and isinstance(values, (str, list, tuple)):
-            if isinstance(values, str):
-                values = (values,)
-            else:
-                raise TypeError("Values argument must be a string, list or tuple.")
+        if values and type(values) not in (list, tuple):
+            raise TypeError("Values argument must be a list or tuple.")
         if values:
             try:
                 self.dbcon.execute(query, values)
@@ -82,12 +181,9 @@ class DBUtility:
             else:
                 self.dbcon.commit()
 
-    def execmanycommit(self, query: str, values: Union[Iterable[Any], str]):
-        if values and isinstance(values, (str, list, tuple)):
-            if isinstance(values, str):
-                values = (values,)
-            else:
-                raise TypeError("Values argument must be a string, list or tuple.")
+    def execmanycommit(self, query: str, values: Iterable[Any]):
+        if values and type(values) not in (list, tuple):
+            raise TypeError("Values argument must be a list or tuple.")
 
         try:
             self.dbcon.executemany(query, values)
@@ -98,17 +194,12 @@ class DBUtility:
 
     def execquerymanynocommit(self,
                               query: str,
-                              values: Union[Iterable[Any], str],
+                              values: Iterable[Any],
                               one: bool = False,
                               raw: bool = False,
                               returndata = False,
                               decode: bool = False
                               ) -> Union[List[Any], sqlite3.Cursor, None]:
-        if values and isinstance(values, (str, list, tuple)):
-            if isinstance(values, str):
-                values = (values,)
-            else:
-                raise TypeError("Values argument must be a list or tuple.")
         output: Any = self.dbcon.cursor()
         returnlist = ("select", "SELECT", "Select")
         if (any(i in query for i in returnlist)
@@ -117,7 +208,7 @@ class DBUtility:
 
             if one:
                 _out = output.fetchone()[0]
-                if isinstance(_out, bytes) and decode:
+                if type(_out) is bytes and decode:
                     _out = _out.decode(sys.stdout.encoding) if sys.stdout.encoding else _out.decode("utf-8")
                 print(output, flush=True)
                 return _out
@@ -152,6 +243,7 @@ class DBUtility:
             except sqlite3.DatabaseError:
                 print("something went wrong.")
                 return False
+            return None
 
         def setdel() -> Union[bool, None]:
             try:
@@ -163,6 +255,7 @@ class DBUtility:
                     return False
             except sqlite3.DatabaseError:
                 return False
+            return None
 
         def setav() -> bool:
             avstate = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
@@ -173,37 +266,37 @@ class DBUtility:
             if args.autovacuum and args.autovacuum == 1 and not avstate == 1:
                 self.execquerynocommit("PRAGMA auto_vacuum = 1")
                 avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
-                if args.verbose or args.debug:
-                    print("full auto_vacuum")
                 if not args.mode == "compact" and avstate2 == 1:
                     return True
                 else:
                     if avstate2 != 1 and avstate != 1 and args.verbose or args.debug:
                         print(notchanged)
                     return False
-                
+                if args.verbose or args.debug:
+                    print("full auto_vacuum")
             elif args.autovacuum and args.autovacuum == 2 and not avstate == 2:
                 self.execquerynocommit("PRAGMA auto_vacuum = 2;")
                 avstate2 = self.execquerynocommit("PRAGMA auto_vacuum;", one=True, returndata=True)
-                if args.verbose or args.debug:
-                    print("incremental auto_vacuum")
                 if not args.mode == "compact" and avstate2 == 2:
                     return True
                 else:
                     if avstate2 != 2 and avstate != 2 and args.verbose or args.debug:
                         print(notchanged)
                     return False
+                if args.verbose or args.debug:
+                    print("incremental auto_vacuum")
             elif args.autovacuum and args.autovacuum == 0 and not avstate == 0:
                 self.execquerynocommit("PRAGMA auto_vacuum = 0;")
                 avstate2 = self.execquerynocommit("PRAGMA_auto_vacuum;", one=True, returndata=True)
-                if args.verbose or args.debug:
-                    print("auto_vacuum disabled")
                 if not args.mode == "compact" and avstate2 == 0:
                     return True
                 else:
                     if avstate2 != 0 and avstate != 0 and args.verbose or args.debug:
                         print(notchanged)
                     return False
+                if args.verbose or args.debug:
+                    print("auto_vacuum disabled")
+            return False
 
         needsvacuum: Union[bool, None] = False
         if "autovacuum" in args and args.autovacuum:
@@ -221,4 +314,4 @@ class DBUtility:
             self.execquerynocommit("VACUUM;")
 
 
-__all__ = ["DBUtility"]
+__all__ = ["cleantablename", "infertable", "globlist", "duplist", "calcname", "DBUtility"]
