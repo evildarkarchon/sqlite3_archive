@@ -256,6 +256,9 @@ class SQLiteArchive(DBUtility):
 
     def schema(self):
         self.execquerycommit(f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );')
+        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_hash_index" ON "{self.args.table}" ("filename" ASC, "hash")')
+        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_index" ON "{self.args.table}" ("filename" ASC)')
+        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_hash_index" ON "{self.args.table}" ("hash")')
 
     def add(self):
         if len(self.args.files) > 0:
