@@ -259,6 +259,7 @@ class SQLiteArchive(DBUtility):
         self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_hash_index" ON "{self.args.table}" ("filename" ASC, "hash")')
         self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_index" ON "{self.args.table}" ("filename" ASC)')
         self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_hash_index" ON "{self.args.table}" ("hash")')
+        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_hash_filename_index" ON "{self.args.table}" ("hash", "filename" ASC)')
 
     def add(self):
         if len(self.args.files) > 0:
