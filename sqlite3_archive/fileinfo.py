@@ -1,22 +1,24 @@
-from __future__ import annotations
-
 import hashlib
 import pathlib
 from argparse import Namespace
 from dataclasses import dataclass
-from typing import Union
+from sqlite3 import Cursor
 
 
 @dataclass
 class FileInfo:
-    name: str = ''
+    name: str | Cursor = ''
     data: bytes = b''
-    digest: str = ''
+    digest: str | None = ''
 
     def __post_init__(self):
-        path: Union[pathlib.Path, None] = None
+        path: pathlib.Path | None = None
         if self.name:
-            path = pathlib.Path(self.name)
+            if isinstance(self.name, Cursor):
+                self.name = self.name.fetchone()[0]
+            else:
+                self.name = str(self.name)
+            path = pathlib.Path(self.name)  # type: ignore
             if path.exists():
                 path = path.resolve()
         if path and path.is_file() and not self.data:
@@ -24,7 +26,7 @@ class FileInfo:
         if self.data and not self.digest:
             self.digest = self.calculatehash()
 
-    def calculatehash(self) -> Union[str, None]:
+    def calculatehash(self) -> str | None:
         if self.data:
             filehash = hashlib.sha512()
             filehash.update(self.data)
@@ -32,7 +34,7 @@ class FileInfo:
         else:
             return None
 
-    def verify(self, refhash: str, args: Namespace) -> Union[bool, None]:
+    def verify(self, refhash: str, args: Namespace) -> bool | None:
         calchash = self.calculatehash()
         if args.debug or args.verbose:
             print(f"* Verifying digest for {self.name}...",
@@ -47,6 +49,3 @@ class FileInfo:
                 print("failed", flush=True)
             return False
         return None
-
-
-__all__ = ["FileInfo"]

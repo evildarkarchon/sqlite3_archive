@@ -17,3 +17,4 @@ __pycache__
 **/*.pickle
 *.sqlite
 sqlite_archive.egg-info
+__pycache__/*

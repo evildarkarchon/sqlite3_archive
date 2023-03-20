@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 import argparse
 import atexit
 import json
 import pathlib
 import sqlite3
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 from sqlite3_archive.fileinfo import FileInfo
 from sqlite3_archive.utility import (DBUtility, calcname, cleantablename,
@@ -15,29 +13,19 @@ from sqlite3_archive.utility import (DBUtility, calcname, cleantablename,
 
 def parse_args() -> argparse.Namespace:
 
-    files_args: Tuple = ("files", "*")
-    lowercase_table_args: Dict = {
+    files_args: tuple = ("files", "*")
+    lowercase_table_args: dict = {
         "long": "--lowercase-table",
         "action": "store_true",
         "dest": "lower",
         "help": "Modify the inferred table name to be lowercase (has no effect if table name is specified)."
     }
-    table_arguments: Dict = {
+    table_arguments: dict = {
         "long": "--table",
         "short": "-t",
         "dest": "table",
         "help": "Name of table to use."
     }
-    autovacuum_args: Dict = {
-        "long": "--autovacuum-mode",
-        "short": "-a",
-        "nargs": 1,
-        "dest": "autovacuum",
-        "default": 1,
-        "type": int,
-        "help": "Sets the automatic vacuum mode. (0 = disabled, 1 = full autovacuum mode, 2 = incremental autovacuum mode)"
-    }
-    autovacuum_args["choices"] = [0, 1, 2]
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description="Imports or Exports files from an sqlite3 database.",
@@ -54,13 +42,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print some more information without changing the exception raising policy."
     )
-    parser.add_argument(autovacuum_args["long"],
-                        autovacuum_args["short"],
-                        nargs=autovacuum_args["nargs"],
-                        default=autovacuum_args["default"],
-                        dest=autovacuum_args["dest"],
-                        choices=autovacuum_args["choices"],
-                        help=autovacuum_args["help"])
+    parser.add_argument("--autovacuum-mode",
+                        "-a",
+                        nargs=1,
+                        default=1,
+                        type=int,
+                        dest="autvacuum",
+                        choices=[0, 1, 2],
+                        help="Sets the automatic vacuum mode. (0 = disabled, 1 = full autovacuum mode, 2 = incremental autovacuum mode)")
     walargs = parser.add_mutually_exclusive_group()
     walargs.add_argument(
         "--wal",
@@ -232,6 +221,8 @@ class SQLiteArchive(DBUtility):
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
+        self.files: list = self.args.files
+
     def drop(self):
         print(f"* Deleting table {self.args.table}...", end=' ', flush=True)
         try:
@@ -255,36 +246,42 @@ class SQLiteArchive(DBUtility):
             print("done")
 
     def schema(self):
-        self.execquerycommit(f'CREATE TABLE IF NOT EXISTS {self.args.table} ( "filename" TEXT NOT NULL UNIQUE, "data" BLOB NOT NULL, "hash" TEXT NOT NULL UNIQUE, PRIMARY KEY("hash") );')
-        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_hash_index" ON "{self.args.table}" ("filename" ASC, "hash")')
-        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_index" ON "{self.args.table}" ("filename" ASC)')
-        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_hash_index" ON "{self.args.table}" ("hash")')
-        self.execquerycommit(f'CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_hash_filename_index" ON "{self.args.table}" ("hash", "filename" ASC)')
+        self.execquerycommit(f'''CREATE TABLE IF NOT EXISTS {self.args.table} (
+            "filename" TEXT NOT NULL UNIQUE,
+            "data" BLOB NOT NULL,
+            "hash" TEXT NOT NULL UNIQUE,
+            PRIMARY KEY("hash")
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_hash_index" ON "{self.args.table}" ("filename" ASC, "hash");
+        CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_filename_index" ON "{self.args.table}" ("filename" ASC);
+        CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_hash_index" ON "{self.args.table}" ("hash");
+        CREATE UNIQUE INDEX IF NOT EXISTS "{self.args.table}_hash_filename_index" ON "{self.args.table}" ("hash", "filename" ASC);''')
 
     def add(self):
         if len(self.args.files) > 0:
-            files: List = [x for x in globlist(self.args.files) if pathlib.Path(x).resolve() != pathlib.Path(self.args.db).resolve()]
-            files.sort()
-            
+            self.files: list = [x for x in globlist(self.args.files) if pathlib.Path(x).resolve() != pathlib.Path(self.args.db).resolve()]
+            self.files.sort()
+
             """The file exclusion code is currently a WIP. It currently only works based on file names
             because it strips all directory components from the exclusion list."""
             if not self.args.exclude or len(self.args.exclude) == 0:
                 self.args.exclude = ["Thumbs.db"]
             self.args.exclude = list(set(self.args.exclude))
             self.args.exclude = [pathlib.Path(i).name for i in self.args.exclude]
-            files = [i for i in files if pathlib.Path(i).name not in self.args.exclude]
+            files = [i for i in self.files if pathlib.Path(i).name not in self.args.exclude]
 
-            if self.args.debug or self.args.verbose:
-                print("File List:")
-                print(files)
-                print("Exclude List:")
-                print(self.args.exclude, end="\n\n")
+            match (self.args.verbose, self.args.debug):
+                case (True) | (_, True):
+                    print("File List:")
+                    print(files)
+                    print("Exclude List:")
+                    print(self.args.exclude, end="\n\n")
             if not files:
                 raise RuntimeError("No files were found.")
 
         def insert():
             query: str = f"insert into {self.args.table} (filename, data, hash) values (?, ?, ?)"
-            values: Tuple = (fileinfo.name, fileinfo.data, fileinfo.digest)
+            values: tuple = (fileinfo.name, fileinfo.data, fileinfo.digest)
             if self.args.no_atomic:
                 print(f"* Adding {fileinfo.name} to {self.args.table}...",
                       end=' ',
@@ -298,32 +295,35 @@ class SQLiteArchive(DBUtility):
                 self.execquerynocommit(query, values)
 
         def replace():
+            self.files = [x for x in globlist(self.args.files) if pathlib.Path(x).resolve() != pathlib.Path(self.args.db).resolve()]
+            self.files.sort()
             query: str = f"replace into {self.args.table} (filename, data, hash) values (?, ?, ?)"
-            values: Tuple = (fileinfo.name, fileinfo.data, fileinfo.digest)
-            if self.args.no_atomic:
-                print(
-                    f"* Replacing {fileinfo.name}'s data in {self.args.table} with specified file's data...",
-                    end=' ',
-                    flush=True)
-                self.execquerycommit(query, values)
-            else:
-                print(
-                    f"* Queueing {fileinfo.name}'s data for replacement in {self.args.table} with specified file's data...",
-                    end=' ',
-                    flush=True)
-                self.execquerynocommit(query, values)
+            values: tuple = (fileinfo.name, fileinfo.data, fileinfo.digest)
+            match (self.args.no_atomic):
+                case (True):
+                    print(
+                        f"* Replacing {fileinfo.name}'s data in {self.args.table} with specified file's data...",
+                        end=' ',
+                        flush=True)
+                    self.execquerycommit(query, values)
+                case _:
+                    print(
+                        f"* Queueing {fileinfo.name}'s data for replacement in {self.args.table} with specified file's data...",
+                        end=' ',
+                        flush=True)
+                    self.execquerynocommit(query, values)
 
         if not self.args.table:
             self.args.table = infertable(mode=self.args.mode,
                                          lower=self.args.lower,
-                                         files=files)
+                                         files=self.files)
 
         if "table" in self.args and not self.args.table:
             raise RuntimeError("File or Directory specified not found and table was not specified.")
 
         if self.args.table:
             self.schema()
-        
+
         dbname: str = calcname(self.db, verbose=self.args.verbose)
         dups: dict = {}
         dups[dbname] = {}
@@ -334,27 +334,27 @@ class SQLiteArchive(DBUtility):
         replaced: int = 0
 
         if dbname in list(dups.keys()):
-            dups[dbname] = {calcname(i):[] for i in files if i not in dups[dbname]}
+            dups[dbname] = {calcname(i): [] for i in self.files if i not in dups[dbname]}
 
         if self.args.verbose or self.args.debug:
             print("Dups Dict:")
             print(dups)
-    
-        for i in files:
+
+        for i in self.files:
             if not type(i) == pathlib.Path:
                 i = pathlib.Path(i)
             fullpath: pathlib.Path = i.resolve()
             fileinfo: FileInfo = FileInfo(name=calcname(i, verbose=self.args.verbose))
             try:
                 if i.is_file():
-                    exists: int = None
+                    exists: int = 0
                     if self.args.replace:
                         exists = int(
                             self.execquerynocommit(
                                 f"select count(distinct filename) from {self.args.table} where filename = ?",
                                 values=(fileinfo.name, ),
                                 returndata=True,
-                                one=True)[0])
+                                one=True)[0])  # type: ignore
                         if self.args.debug or self.args.verbose:
                             print(exists)
                     fileinfo.data = bytes(i.read_bytes())
@@ -365,7 +365,7 @@ class SQLiteArchive(DBUtility):
                     else:
                         insert()
             except sqlite3.IntegrityError:
-                query = self.execquerynocommit(f"select filename from {self.args.table} where hash == ?", (fileinfo.digest, ), returndata=True)[0][0]
+                query = self.execquerynocommit(f"select filename from {self.args.table} where hash == ?", (fileinfo.digest, ), returndata=True)[0][0]  # type: ignore
                 querytype: str = type(query)
                 querylen: int = len(query)
                 if self.args.debug or self.args.verbose:
@@ -383,7 +383,7 @@ class SQLiteArchive(DBUtility):
                         dups[dbname][str(query)] = [str(fullpath)]
                     if self.args.debug or self.args.verbose:
                         print(query)
-                
+
                 dups[dbname][str(query)] = [g for g in dups[dbname][str(query)] if query not in g]
 
                 if self.args.debug:
@@ -401,7 +401,7 @@ class SQLiteArchive(DBUtility):
                     continue
             else:
                 print("done")
-        
+
         if not self.args.no_atomic:
             print("* Finishing up...", end=' ', flush=True)
             try:
@@ -413,7 +413,7 @@ class SQLiteArchive(DBUtility):
             else:
                 print("done")
 
-        dups[dbname] = {h:i for h, i in dups[dbname].items() if len(dups[dbname][h]) > 0}
+        dups[dbname] = {h: i for h, i in dups[dbname].items() if len(dups[dbname][h]) > 0}
 
         if self.args.replace and not self.args.no_replace_vacuum and replaced > 0 or self.args.vacuum:
             self.compact()
@@ -440,12 +440,13 @@ class SQLiteArchive(DBUtility):
 
         def calcextractquery():
             fileslen: int = len(self.args.files)
+            out = ""
             if self.args.files and fileslen > 0:
                 if fileslen > 1:
                     questionmarks: Any = '?' * fileslen
                     out = f"select rowid, data from {self.args.table} where filename in ({','.join(questionmarks)}) order by filename asc"
                     # out = f"select rowid, data from {self.args.table} where filename in (?) order by filename asc" # executemany doesn't work on select satements, apparently
-                if self.args.files and fileslen == 1:
+                elif self.args.files and fileslen == 1:
                     out = f"select rowid, data from {self.args.table} where filename == ? order by filename asc"
             else:
                 out = f"select rowid, data from {self.args.table} order by filename asc"
@@ -456,17 +457,17 @@ class SQLiteArchive(DBUtility):
         if not type(self.args.files) in (list, tuple):
             raise TypeError("self.args.files must be a list or tuple")
 
-        if len(tuple(self.execquerynocommit(f"pragma table_info({self.args.table})", returndata=True))) < 1:
+        if len(tuple(self.execquerynocommit(f"pragma table_info({self.args.table})", returndata=True))) < 1:  # type: ignore
             raise sqlite3.OperationalError("No such table")
 
         if not self.args.out:
-            self.args.out = pathlib.Path.cwd().joinpath(self.args.table.replace('_', ' '))
+            self.args.out = pathlib.Path.cwd().joinpath(self.args.table.replace('_', ' '))  # type: ignore
 
-        outputdir: pathlib.Path = None
+        outputdir = pathlib.PurePath(self.args.out)
         if self.args.out and pathlib.Path(self.args.out).exists():
-            outputdir = pathlib.Path(self.args.out).resolve()
+            outputdir = pathlib.Path(outputdir).resolve()
         else:
-            outputdir = pathlib.Path(self.args.out)
+            outputdir = pathlib.Path(outputdir)
 
         if outputdir.is_file():
             raise RuntimeError("The output directory specified points to a file.")
@@ -481,60 +482,60 @@ class SQLiteArchive(DBUtility):
         if self.args.debug or self.args.verbose:
             print(len(self.args.files))
             print(repr(tuple(self.args.files)))
-        query: List = calcextractquery()
+        query: list = calcextractquery()  # type: ignore
 
-        cursor: Union[sqlite3.Cursor, None] = None
+        cursor: sqlite3.Cursor | None = None
 
         if self.args.files and len(self.args.files) > 0:
             if self.args.debug or self.args.verbose:
                 print(query)
-            cursor = self.execquerynocommit(query, self.args.files, raw=True, returndata=True)
+            cursor = self.execquerynocommit(query, self.args.files, raw=True, returndata=True)  # type: ignore
         else:
             if self.args.debug or self.args.verbose:
                 print(query)
-            cursor = self.execquerynocommit(query, raw=True, returndata=True)
+            cursor = self.execquerynocommit(query, raw=True, returndata=True)  # type: ignore
 
-        row: Any = cursor.fetchone()
+        row: Any = cursor.fetchone()  # type: ignore
         while row:
             try:
                 fileinfo: FileInfo = FileInfo()
                 fileinfo.data = bytes(row["data"])
                 try:
-                    fileinfo.name = self.execquerynocommit(
+                    fileinfo.name = self.execquerynocommit(  # type: ignore
                         f"select filename from {self.args.table} where rowid == ?",
                         values=(str(row["rowid"]), ),
                         one=True,
                         returndata=True,
-                        decode=True)
+                        decode=True)  # type: ignore
                     fileinfo.digest = self.execquerynocommit(
                         f"select hash from {self.args.table} where rowid == ?",
                         values=(str(row["rowid"]), ),
                         one=True,
                         returndata=True,
-                        decode=True)
+                        decode=True)  # type: ignore
                 except IndexError:
-                    fileinfo.name = self.execquerynocommit(
+                    fileinfo.name = self.execquerynocommit(  # type: ignore
                         f"select filename from {self.args.table} where pk = ?",
-                        values=(str(row["pk"]), ),
+                        values=(str(row["pk"])),
                         one=True,
                         returndata=True,
                         decode=True
-                    )
+                    )  # type: ignore
                     fileinfo.digest = self.execquerynocommit(
                         f"select hash from {self.args.table} where pk == ?",
                         values=(str(row["pk"]), ),
                         one=True,
                         returndata=True,
                         decode=True
-                    )
+                    )  # type: ignore
 
-                if not fileinfo.verify(fileinfo.digest, self.args) and not self.args.force:
+                if not fileinfo.verify(fileinfo.digest, self.args) and not self.args.force:  # type: ignore
                     if self.args.debug or self.args.verbose:
                         print(f"Calculated Digest: {fileinfo.calculatehash()}")
                         print(f"Recorded Hash: {fileinfo.digest}")
                     raise ValueError("The digest in the database does not match the calculated digest for the data.")
 
-                outpath: pathlib.Path = outputdir.joinpath(fileinfo.name)
+                outpath: pathlib.Path = outputdir.joinpath(fileinfo.name)  # type: ignore
 
                 parent = pathlib.Path(outpath.parent)
                 if not parent.exists():
@@ -549,14 +550,14 @@ class SQLiteArchive(DBUtility):
                 if self.args.debug:
                     raise
                 else:
-                    row = cursor.fetchone()
+                    row = cursor.fetchone()  # type: ignore
                     continue
 
-            row = cursor.fetchone()  # Normal end of loop
+            row = cursor.fetchone()  # type: ignore  # Normal end of loop
 
     def compact(self):
         print("* Compacting the database, this might take a while...",
-              end=' ',
+              end='... ',
               flush=True)
 
         try:

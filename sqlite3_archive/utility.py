@@ -6,7 +6,7 @@ import pathlib
 import sqlite3
 import sys
 from argparse import Namespace
-from typing import Any, Iterable, List, Tuple, Union
+from typing import Any, AnyStr, Generator, Iterable
 
 
 def cleantablename(instring: str, lower: bool = False) -> str:
@@ -22,24 +22,25 @@ def cleantablename(instring: str, lower: bool = False) -> str:
 def infertable(mode: str,
                lower: bool,
                files: list,
-               out: str = None,
-               pop: bool = False) -> Union[str, None]:
+               out: str | None = None,
+               pop: bool = False) -> str | None:
+    base: pathlib.Path | None = None
     if mode == "add":
-        base: pathlib.Path = pathlib.Path(files[0]).resolve()
+        base = pathlib.Path(files[0]).resolve()
 
-    if not base.exists():
+    if not base.exists():  # type: ignore
         return None
 
     f: str = str()
-    if mode == "add" and base.is_file():
-        f = cleantablename(base.parent.name, lower)
-    elif mode == "add" and base.is_dir():
-        f = cleantablename(base.name, lower)
+    if mode == "add" and base.is_file():  # type: ignore
+        f = cleantablename(base.parent.name, lower)  # type: ignore
+    elif mode == "add" and base.is_dir():  # type: ignore
+        f = cleantablename(base.name, lower)  # type: ignore
 
     if mode == "extract":
         if out:
             f = cleantablename(pathlib.Path(out).name)
-        
+
         if files[0] and not out:
             f = cleantablename(pathlib.Path(files[0]).stem)
             if pop:
@@ -49,21 +50,23 @@ def infertable(mode: str,
     else:
         return None
 
-def globlist(listglob: Union[Iterable, AnyStr]) -> Generator:
-    if type(listglob) is str:
+
+def globlist(listglob: Iterable | AnyStr) -> Generator:
+    if isinstance(listglob, str) and "*" not in listglob:
         listglob = [listglob]
     listglob = list(set(listglob))
     for a in listglob:
-        if type(a) == str and "*" in a:
+        if isinstance(a, str) and "*" in a:  # type: ignore
             yield from [pathlib.Path(i) for i in glob.glob(a, recursive=True) if pathlib.Path(i).is_file()]
-        elif pathlib.Path(a).is_dir():
-            yield from [pathlib.Path(i) for i in pathlib.Path(a).rglob("*") if pathlib.Path(i).is_file()]
-        elif pathlib.Path(a).is_file():
-            yield pathlib.Path(a)
+        elif pathlib.Path(a).is_dir():  # type: ignore
+            yield from [pathlib.Path(i) for i in pathlib.Path(a).rglob("*") if pathlib.Path(i).is_file()]  # type: ignore
+        elif pathlib.Path(a).is_file():  # type: ignore
+            yield pathlib.Path(a)  # type: ignore
+
 
 def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
             currentdb: bool):
-    keylist: List = list(dups.keys())
+    keylist: list = list(dups.keys())
     dupsexist: bool = False
     for i in keylist:
         if len(dups[i]) >= 1:
@@ -80,8 +83,9 @@ def duplist(dups: dict, dbname: str, outfile: str, hide: bool,
         dupspath: pathlib.Path = pathlib.Path(outfile)
         dupspath.write_text(json.dumps(dups, indent=4))
 
+
 def calcname(inpath: pathlib.Path, verbose: bool = False) -> str:
-    parents: List = sorted(inpath.parents)
+    parents: list = sorted(inpath.parents)
     parentslen: int = len(parents)
     if verbose:
         print(parents)
@@ -96,7 +100,7 @@ def calcname(inpath: pathlib.Path, verbose: bool = False) -> str:
 
     try:
         if parentslen == 1:
-            return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
+            return str(inpath.relative_to(parents[0]))
         elif inpath.is_absolute() and str(pathlib.Path.cwd()) in str(inpath):
             return str(inpath.resolve().relative_to(pathlib.Path.cwd()))
         elif not inpath.is_absolute() and parentslen > 1:
@@ -113,7 +117,7 @@ def calcname(inpath: pathlib.Path, verbose: bool = False) -> str:
 class DBUtility:
     def __init__(self, args: Namespace):
         def createdb() -> sqlite3.Connection:
-            dbcon: Union[sqlite3.Connection, None] = None
+            dbcon: sqlite3.Connection | None = None
 
             if self.db.is_file():
                 dbcon = sqlite3.Connection(self.db)
@@ -130,12 +134,12 @@ class DBUtility:
 
     def execquerynocommit(self,
                           query: str,
-                          values: Iterable[Any] = None,
+                          values: Iterable[Any] | None = None,
                           one: bool = False,
                           raw: bool = False,
-                          returndata = False,
+                          returndata=False,
                           decode: bool = False
-                          ) -> Union[List[Any], sqlite3.Cursor, None]:
+                          ) -> list[Any] | sqlite3.Cursor | None:
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
 
@@ -143,7 +147,7 @@ class DBUtility:
 
         if returndata is True:
             if values:
-                output = self.dbcon.execute(query, values)
+                output = self.dbcon.execute(query, values)  # type: ignore
             else:
                 output = self.dbcon.execute(query)
 
@@ -151,24 +155,24 @@ class DBUtility:
                 out = output.fetchone()[0]
                 if type(out) is bytes and decode:
                     out = out.decode(sys.stdout.encoding) if sys.stdout.encoding else out.decode("utf-8")
-                return out
+                return out  # type: ignore
             elif raw:
                 return output
             else:
                 return output.fetchall()
         else:
             if values:
-                self.dbcon.execute(query, values)
+                self.dbcon.execute(query, values)  # type: ignore
             else:
                 self.dbcon.execute(query)
             return None
 
-    def execquerycommit(self, query: str, values: Iterable[Any] = None):
+    def execquerycommit(self, query: str, values: Iterable[Any] = None):  # type: ignore
         if values and type(values) not in (list, tuple):
             raise TypeError("Values argument must be a list or tuple.")
         if values:
             try:
-                self.dbcon.execute(query, values)
+                self.dbcon.execute(query, values)  # type: ignore
             except Exception:
                 raise
             else:
@@ -197,37 +201,32 @@ class DBUtility:
                               values: Iterable[Any],
                               one: bool = False,
                               raw: bool = False,
-                              returndata = False,
-                              decode: bool = False
-                              ) -> Union[List[Any], sqlite3.Cursor, None]:
-        output: Any = self.dbcon.cursor()
-        returnlist = ("select", "SELECT", "Select")
-        if (any(i in query for i in returnlist)
-                and returndata is False) or returndata is True:
-            output = output.executemany(query, values)
-
+                              returndata: bool = False,
+                              decode: bool = False) -> list[Any]:
+        cursor = self.dbcon.cursor()
+        cursor.executemany(query, values)
+        if cursor.description is None:
+            return []
+        if returndata or cursor.description[0][0].lower() == "select":
+            rows = cursor.fetchall()
             if one:
-                _out = output.fetchone()[0]
-                if type(_out) is bytes and decode:
-                    _out = _out.decode(sys.stdout.encoding) if sys.stdout.encoding else _out.decode("utf-8")
-                print(output, flush=True)
-                return _out
+                row = rows[0][0]
+                if isinstance(row, bytes) and decode:
+                    row = row.decode(sys.stdout.encoding or "utf-8")
+                return [row]
             elif raw:
-                print(output, flush=True)
-                return output
+                return rows
             else:
-                print(output, flush=True)
-                return output.fetchall()
+                return [row[0] for row in rows]
         else:
-            output.executemany(output, values)
-        return None
+            return []
 
     def set_journal_and_av(self, args: Namespace):
         if args.debug:
             print("function run")
         journal_mode = self.execquerynocommit("PRAGMA journal_mode;", one=True, returndata=True)
 
-        def setwal() -> Union[bool, None]:
+        def setwal() -> bool | None:
             if args.debug or args.verbose:
                 print("wal run")
             try:
@@ -243,9 +242,8 @@ class DBUtility:
             except sqlite3.DatabaseError:
                 print("something went wrong.")
                 return False
-            return None
 
-        def setdel() -> Union[bool, None]:
+        def setdel() -> bool | None:
             try:
                 self.execquerynocommit("PRAGMA journal_mode=delete;")
                 new_journal_mode = self.execquerynocommit("PRAGMA journal_mode;", one=True, returndata=True)
@@ -298,7 +296,7 @@ class DBUtility:
                     print("auto_vacuum disabled")
             return False
 
-        needsvacuum: Union[bool, None] = False
+        needsvacuum: bool | None = False
         if "autovacuum" in args and args.autovacuum:
             needsvacuum = setav()
 
