@@ -3,49 +3,64 @@ import pathlib
 from argparse import Namespace
 from dataclasses import dataclass
 from sqlite3 import Cursor
+from typing import Union, Optional
 
 
 @dataclass
 class FileInfo:
-    name: str | Cursor = ''
+    name: Union[str, Cursor] = ''
     data: bytes = b''
-    digest: str | None = ''
+    digest: Optional[str] = None
 
     def __post_init__(self):
-        path: pathlib.Path | None = None
+        self.name = self._resolve_name()
+        path = self._resolve_path()
+        if not self.data and path:
+            self.data = self._read_data_from_path(path)
+        if self.data and not self.digest:
+            self.digest = self.calculate_hash()
+
+    def _resolve_name(self) -> str:
         if self.name:
             if isinstance(self.name, Cursor):
                 self.name = self.name.fetchone()[0]
             else:
                 self.name = str(self.name)
-            path = pathlib.Path(self.name)  # type: ignore
-            if path.exists():
-                path = path.resolve()
-        if path and path.is_file() and not self.data:
-            self.data = path.read_bytes()
-        if self.data and not self.digest:
-            self.digest = self.calculatehash()
+        return self.name
 
-    def calculatehash(self) -> str | None:
-        if self.data:
-            filehash = hashlib.sha512()
-            filehash.update(self.data)
-            return filehash.hexdigest()
-        else:
+    def _resolve_path(self) -> Optional[pathlib.Path]:
+        if not self.name:
             return None
+        if isinstance(self.name, Cursor):
+            self.name = self.name.fetchone()[0]
+        path = pathlib.Path(self.name)
+        if path.exists():
+            return path.resolve()
+        return None
 
-    def verify(self, refhash: str, args: Namespace) -> bool | None:
-        calchash = self.calculatehash()
-        if args.debug or args.verbose:
-            print(f"* Verifying digest for {self.name}...",
-                  end=' ',
-                  flush=True)
-        if calchash == refhash:
-            if args.debug or args.verbose:
-                print("pass", flush=True)
+    def _read_data_from_path(self, path: pathlib.Path) -> bytes:
+        if path.is_file():
+            return path.read_bytes()
+        return b''
+
+    def calculate_hash(self) -> Optional[str]:
+        if self.data:
+            file_hash = hashlib.sha512()
+            file_hash.update(self.data)
+            return file_hash.hexdigest()
+        return None
+
+    def verify(self, refhash: str, args: Namespace) -> Optional[bool]:
+        calc_hash = self.calculate_hash()
+        self._print_verification_message(args, calc_hash, refhash)
+
+        if calc_hash == refhash:
             return True
-        elif calchash != refhash:
-            if args.debug or args.verbose:
-                print("failed", flush=True)
+        elif calc_hash != refhash:
             return False
         return None
+
+    def _print_verification_message(self, args: Namespace, calc_hash: Optional[str], refhash: str):
+        if args.debug or args.verbose:
+            status = "pass" if calc_hash == refhash else "failed"
+            print(f"* Verifying digest for {self.name}... {status}", flush=True)
