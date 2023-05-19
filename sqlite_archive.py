@@ -4,14 +4,52 @@ import atexit
 import json
 import pathlib
 import sqlite3
-from typing import Any, List, Dict, Union
+from dataclasses import dataclass, field
+from typing import Any, Dict, Generator, List, Optional, Union
 
 from sqlite3_archive.fileinfo import FileInfo
 from sqlite3_archive.utility import (DBUtility, calc_name, clean_table_name,
-                                     process_duplicates, glob_list, infer_table)
+                                     glob_list, infer_table,
+                                     process_duplicates)
 
 
-def parse_args() -> argparse.Namespace:
+@dataclass
+class Args:
+    db: str = field(default_factory=str)
+    mode: str = field(default_factory=str)
+    table: Union[str, None] = field(default_factory=str)
+    autovacuum: int = field(default_factory=int)
+    wal: bool = field(default_factory=bool)
+    rollback: bool = field(default_factory=bool)
+    files: Union[List[str], Generator] = field(default_factory=list)
+    dups_file: Union[str, pathlib.Path] = field(default_factory=str)
+    exclude: Union[List[str], Generator] = field(default_factory=list)
+    nodups: bool = field(default_factory=bool)
+    hidedups: bool = field(default_factory=bool)
+    dupscurrent: bool = field(default_factory=bool)
+    no_atomic: bool = field(default_factory=bool)
+    vacuum: bool = field(default_factory=bool)
+    no_drop_vacuum: bool = field(default_factory=bool)
+    no_replace_vacuum: bool = field(default_factory=bool)
+    lower: bool = field(default_factory=bool)
+    debug: bool = field(default_factory=bool)
+    verbose: bool = field(default_factory=bool)
+    replace: bool = field(default_factory=bool)
+    out: Union[str, pathlib.Path, pathlib.PurePath] = field(default_factory=str)
+    pop: bool = field(default_factory=bool)
+    outputdir: Union[str, pathlib.Path, pathlib.PurePath] = field(default_factory=str)
+
+    def __post_init__(self):
+        self.table = clean_table_name(self.table)  # type: ignore
+        self.files = glob_list(self.files)
+        self.exclude = glob_list(self.exclude)
+        self.dups_file = pathlib.Path(self.dups_file).resolve()
+
+
+args = Args()
+
+
+def parse_args() -> Args:
 
     files_args: tuple = ("files", "*")
     lowercase_table_args: dict = {
@@ -196,7 +234,7 @@ def parse_args() -> argparse.Namespace:
         help="Files to be extracted from the SQLite Database. Leaving this empty will extract all files from the specified table."
     )
 
-    return parser.parse_args()
+    return parser.parse_args(namespace=args)
 
 
 def calc_extract_query(args) -> str:
@@ -213,26 +251,34 @@ def calc_extract_query(args) -> str:
 
 class SQLiteArchive(DBUtility):
     def __init__(self):
-        self.args: argparse.Namespace = parse_args()
+        self.args: Args = parse_args()
 
+        # Print parsed arguments if verbose or debug mode is enabled
         if self.args.verbose or self.args.debug:
             print("* Parsed Command Line Arguments: ", end=' ', flush=True)
             print(self.args)
 
-        if "table" in self.args and self.args.table:
+        # Clean table name if provided
+        if self.args.table:
             self.args.table = clean_table_name(self.args.table, lower=self.args.lower)
 
+        # Remove duplicate file paths
         self.args.files = list(set(self.args.files))
 
+        # Initialize the superclass with parsed arguments
         super().__init__(self.args)
 
+        # Set journal and av settings
         self.set_journal_and_av(self.args)
 
+        # Set row factory for the database connection
         self.dbcon.row_factory = sqlite3.Row
 
+        # Register functions to be executed when the program exits
         atexit.register(self.dbcon.close)
         atexit.register(self.dbcon.execute, "PRAGMA optimize;")
 
+        # Assign file paths
         self.files = self.args.files
 
     def drop(self):
@@ -333,7 +379,7 @@ class SQLiteArchive(DBUtility):
             self.exec_query_no_commit(query, values)
 
     def replace(self, fileinfo: FileInfo) -> None:
-        self.files = self.sorted_files(self.args.files)
+        self.files = self.sorted_files(list(self.args.files))
         query = f"replace into {self.args.table} (filename, data, hash) values (?, ?, ?)"
         values = (fileinfo.name, fileinfo.data, fileinfo.digest)
         self.replace_fileinfo(fileinfo, query, values)
@@ -455,7 +501,7 @@ class SQLiteArchive(DBUtility):
         if not self.args.nodups:
             process_duplicates(dups,
                                dbname,
-                               outfile=self.args.dups_file,
+                               outfile=str(self.args.dups_file),
                                hide=self.args.hidedups,
                                currentdb=self.args.dupscurrent)
 
@@ -465,7 +511,7 @@ class SQLiteArchive(DBUtility):
                                           lower=self.args.lower,
                                           files=self.files)  # type: ignore
 
-        if "table" in self.args and not self.args.table:
+        if not self.args.table:
             raise RuntimeError("File or Directory specified not found and table was not specified.")
 
         if self.args.table:
@@ -474,7 +520,7 @@ class SQLiteArchive(DBUtility):
         dbname: str = calc_name(self.db, verbose=self.args.verbose)
         dups: dict = {}
         dups[dbname] = {}
-        if "dups_file" in self.args and self.args.dups_file:
+        if self.args.dups_file:
             dupspath: pathlib.Path = pathlib.Path(self.args.dups_file).resolve()
             if dupspath.is_file() and not self.args.nodups:
                 dups.update(json.loads(dupspath.read_text()))
@@ -491,7 +537,7 @@ class SQLiteArchive(DBUtility):
 
         self.process_all(dups, dbname, replaced)
 
-    def create_output_dir(self, outputdir: pathlib.PurePath) -> pathlib.Path:
+    def create_output_dir(self, outputdir: Union[str, pathlib.PurePath]) -> pathlib.Path:
         outputdir = pathlib.Path(outputdir)
         if not outputdir.exists():
             if self.args.verbose or self.args.debug:
@@ -507,17 +553,17 @@ class SQLiteArchive(DBUtility):
             values=(str(row["rowid"]), ),
             one=True,
             return_data=True,
-            decode=True) # type: ignore
+            decode=True)  # type: ignore
         fileinfo.digest = self.exec_query_no_commit(
             f"select hash from {self.args.table} where rowid == ?",
             values=(str(row["rowid"]), ),
             one=True,
             return_data=True,
-            decode=True) # type: ignore
+            decode=True)  # type: ignore
         return fileinfo
 
     def extract_file(self, fileinfo: FileInfo, outputdir: pathlib.Path) -> None:
-        outpath = outputdir.joinpath(fileinfo.name) # type: ignore
+        outpath = outputdir.joinpath(fileinfo.name)  # type: ignore
         parent = pathlib.Path(outpath.parent)
         if not parent.exists():
             parent.mkdir(parents=True)
@@ -531,13 +577,13 @@ class SQLiteArchive(DBUtility):
             self.args.files = list(set(self.args.files))
             self.args.files = [i for i in self.args.files if "*" not in i]
         if not self.args.table:
-            self.args.table = infer_table(mode=self.args.mode,
+            self.args.table = infer_table(mode=str(self.args.mode),
                                           lower=self.args.lower,
                                           files=self.args.files,
-                                          out=self.args.out,
+                                          out=str(self.args.out),
                                           pop=self.args.pop)
 
-        if "table" in self.args and not self.args.table:
+        if not self.args.table:
             raise RuntimeError("File or Directory specified not found and table was not specified.")
 
         self.dbcon.text_factory = bytes
@@ -550,7 +596,7 @@ class SQLiteArchive(DBUtility):
         if not self.args.out:
             self.args.out = pathlib.Path.cwd().joinpath(self.args.table.replace('_', ' '))  # type: ignore
 
-        outputdir = self.create_output_dir(self.args.out)
+        outputdir = self.create_output_dir(str(self.args.out))
         if self.args.debug or self.args.verbose:
             print(len(self.args.files))
             print(repr(tuple(self.args.files)))
@@ -570,38 +616,9 @@ class SQLiteArchive(DBUtility):
         row: Any = cursor.fetchone()  # type: ignore
         while row:
             try:
-                fileinfo: FileInfo = FileInfo()
-                fileinfo.data = bytes(row["data"])
-                try:
-                    fileinfo.name = self.exec_query_no_commit(  # type: ignore
-                        f"select filename from {self.args.table} where rowid == ?",
-                        values=(str(row["rowid"]), ),
-                        one=True,
-                        return_data=True,
-                        decode=True)  # type: ignore
-                    fileinfo.digest = self.exec_query_no_commit(
-                        f"select hash from {self.args.table} where rowid == ?",
-                        values=(str(row["rowid"]), ),
-                        one=True,
-                        return_data=True,
-                        decode=True)  # type: ignore
-                except IndexError:
-                    fileinfo.name = self.exec_query_no_commit(  # type: ignore
-                        f"select filename from {self.args.table} where pk = ?",
-                        values=(str(row["pk"])),
-                        one=True,
-                        return_data=True,
-                        decode=True
-                    )  # type: ignore
-                    fileinfo.digest = self.exec_query_no_commit(
-                        f"select hash from {self.args.table} where pk == ?",
-                        values=(str(row["pk"]), ),
-                        one=True,
-                        return_data=True,
-                        decode=True
-                    )  # type: ignore
+                fileinfo: FileInfo = self.fetch_fileinfo(row)
 
-                if not fileinfo.verify(fileinfo.digest, self.args) and not self.args.force: # type: ignore
+                if not fileinfo.verify(fileinfo.digest, self.args) and not self.args.force:  # type: ignore
                     if self.args.debug or self.args.verbose:
                         print(f"Calculated Digest: {fileinfo.calculate_hash()}")
                         print(f"Recorded Hash: {fileinfo.digest}")
@@ -614,7 +631,7 @@ class SQLiteArchive(DBUtility):
                 if self.args.debug:
                     raise
                 else:
-                    row = cursor.fetchone() # type: ignore
+                    row = cursor.fetchone()  # type: ignore
                     continue
 
             row = cursor.fetchone()  # type: ignore  # Normal end of loop
@@ -633,15 +650,16 @@ class SQLiteArchive(DBUtility):
             print("done")
 
 
-sqlitearchive: SQLiteArchive = SQLiteArchive()
+if __name__ == "__main__":
+    sqlitearchive: SQLiteArchive = SQLiteArchive()
 
-if sqlitearchive.args.mode == 'create':
-    sqlitearchive.schema()
-elif sqlitearchive.args.mode == 'drop':
-    sqlitearchive.drop()
-elif sqlitearchive.args.mode == 'compact':
-    sqlitearchive.compact()
-elif sqlitearchive.args.mode == 'extract':
-    sqlitearchive.extract()
-elif sqlitearchive.args.mode == 'add':
-    sqlitearchive.add()
+    if sqlitearchive.args.mode == 'create':
+        sqlitearchive.schema()
+    elif sqlitearchive.args.mode == 'drop':
+        sqlitearchive.drop()
+    elif sqlitearchive.args.mode == 'compact':
+        sqlitearchive.compact()
+    elif sqlitearchive.args.mode == 'extract':
+        sqlitearchive.extract()
+    elif sqlitearchive.args.mode == 'add':
+        sqlitearchive.add()

@@ -1,9 +1,10 @@
 import hashlib
 import pathlib
-from argparse import Namespace
 from dataclasses import dataclass
 from sqlite3 import Cursor
-from typing import Union, Optional
+from typing import Optional, Union
+
+from sqlite_archive import Args
 
 
 @dataclass
@@ -50,7 +51,7 @@ class FileInfo:
             return file_hash.hexdigest()
         return None
 
-    def verify(self, refhash: str, args: Namespace) -> Optional[bool]:
+    def verify(self, refhash: str, args: Args) -> Optional[bool]:
         calc_hash = self.calculate_hash()
         self._print_verification_message(args, calc_hash, refhash)
 
@@ -60,7 +61,7 @@ class FileInfo:
             return False
         return None
 
-    def _print_verification_message(self, args: Namespace, calc_hash: Optional[str], refhash: str):
+    def _print_verification_message(self, args: Args, calc_hash: Optional[str], refhash: str):
         if args.debug or args.verbose:
             status = "pass" if calc_hash == refhash else "failed"
             print(f"* Verifying digest for {self.name}... {status}", flush=True)

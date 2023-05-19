@@ -5,8 +5,10 @@ import json
 import pathlib
 import sqlite3
 import sys
-from argparse import Namespace
-from typing import Any, AnyStr, Generator, Iterable, Union, Optional, List, Dict
+from typing import (Any, AnyStr, Dict, Generator, Iterable, List, Optional,
+                    Union)
+
+from sqlite_archive import Args
 
 
 def clean_table_name(instring: str, lower: bool = False) -> str:
@@ -29,7 +31,7 @@ def clean_table_name(instring: str, lower: bool = False) -> str:
     return out.lower() if lower else out
 
 
-def infer_table(mode: str,
+def infer_table(mode: Optional[str],
                 lower: bool,
                 files: List[str],
                 out: Optional[str] = None,
@@ -38,14 +40,20 @@ def infer_table(mode: str,
         cleaned_name = name.replace(" ", "_").replace("-", "_")
         return cleaned_name.lower() if lower_case else cleaned_name
 
-    base = None
-    if mode == "add":
-        base = pathlib.Path(files[0]).resolve()
+    # Return None if mode is not specified or files list is empty
+    if not mode or not files:
+        return None
 
+    # Set the base path for 'add' mode
+    base = pathlib.Path(files[0]).resolve() if mode == "add" else None
+
+    # Return None if base is not set or does not exist
     if not base or not base.exists():
         return None
 
     table_name = ""
+
+    # Determine table_name based on the mode
     if mode == "add":
         if base.is_file():
             table_name = clean_table_name(base.parent.name, lower)
@@ -53,9 +61,9 @@ def infer_table(mode: str,
             table_name = clean_table_name(base.name, lower)
     elif mode == "extract":
         if out:
-            table_name = clean_table_name(pathlib.Path(out).name)
+            table_name = clean_table_name(pathlib.Path(out).name, lower)
         elif files[0] and not out:
-            table_name = clean_table_name(pathlib.Path(files[0]).stem)
+            table_name = clean_table_name(pathlib.Path(files[0]).stem, lower)
             if pop:
                 files.pop(0)
 
@@ -63,6 +71,7 @@ def infer_table(mode: str,
 
 
 def glob_list(input_paths: Union[Iterable, str]) -> Generator[pathlib.Path, None, None]:
+    # Convert a single string input_path (without wildcard) to a list
     if isinstance(input_paths, str) and "*" not in input_paths:
         input_paths = [input_paths]
 
@@ -71,10 +80,13 @@ def glob_list(input_paths: Union[Iterable, str]) -> Generator[pathlib.Path, None
     for path in unique_paths:
         path_obj = pathlib.Path(path)
 
+        # If path contains a wildcard, use glob to match files
         if isinstance(path, str) and "*" in path:
-            yield from (pathlib.Path(matched_path) for matched_path in glob.glob(path, recursive=True) if path_obj.is_file())
+            yield from (pathlib.Path(matched_path) for matched_path in glob.glob(path, recursive=True) if pathlib.Path(matched_path).is_file())
+        # If path is a directory, use rglob to find all files in the directory
         elif path_obj.is_dir():
-            yield from (pathlib.Path(file_path) for file_path in path_obj.rglob("*") if path_obj.is_file())
+            yield from (file_path for file_path in path_obj.rglob("*") if file_path.is_file())
+        # If path is a file, yield the path object
         elif path_obj.is_file():
             yield path_obj
 
@@ -145,22 +157,23 @@ def calc_name(inpath: pathlib.Path, verbose: bool = False) -> str:
 
 
 class DBUtility:
-    def __init__(self, args: Namespace):
-        def createdb() -> sqlite3.Connection:
-            dbcon: sqlite3.Connection | None = None
+    @staticmethod
+    def create_db_connection(db_path: pathlib.Path) -> sqlite3.Connection:
+        dbcon: sqlite3.Connection | None = None
 
-            if self.db.is_file():
-                dbcon = sqlite3.Connection(self.db)
-            else:
-                self.db.touch()
-                dbcon = sqlite3.Connection(self.db)
+        if db_path.is_file():
+            dbcon = sqlite3.connect(db_path)
+        else:
+            db_path.touch()
+            dbcon = sqlite3.connect(db_path)
 
-            return dbcon
+        return dbcon
 
+    def __init__(self, args: Args):
         self.db: pathlib.Path = pathlib.Path(args.db)
         if self.db.exists():
             self.db = self.db.resolve()
-        self.dbcon: sqlite3.Connection = createdb()
+        self.dbcon: sqlite3.Connection = self.create_db_connection(self.db)
 
     def exec_query_no_commit(
         self,
@@ -176,7 +189,7 @@ class DBUtility:
                 raise TypeError("Values argument must be a list or tuple.")
 
         def _execute_query() -> sqlite3.Cursor:
-            return self.dbcon.execute(query, values) if values else self.dbcon.execute(query) # type: ignore
+            return self.dbcon.execute(query, values) if values else self.dbcon.execute(query)  # type: ignore
 
         def _decode_output(output: Any) -> Any:
             return (
@@ -203,11 +216,11 @@ class DBUtility:
             return cursor.fetchall()
 
     def exec_query_commit(self, query: str, values: Optional[Iterable[Any]] = None) -> None:
-        self._validate_values(values) # type: ignore
+        self._validate_values(values)  # type: ignore
 
         try:
             if values:
-                self.dbcon.execute(query, values) # type: ignore
+                self.dbcon.execute(query, values)  # type: ignore
             else:
                 self.dbcon.execute(query)
         except Exception:
@@ -259,9 +272,9 @@ class DBUtility:
             return [row[0] for row in rows]
 
         return []
-    
+
     def _get_current_av_state(self) -> Optional[int]:
-        return self.exec_query_no_commit("PRAGMA auto_vacuum;", one=True, return_data=True) # type: ignore
+        return self.exec_query_no_commit("PRAGMA auto_vacuum;", one=True, return_data=True)  # type: ignore
 
     def _set_av_state(self, av_state: int):
         self.exec_query_no_commit(f"PRAGMA auto_vacuum = {av_state};")
@@ -269,24 +282,24 @@ class DBUtility:
     def _av_state_changed(self, old_state: Optional[int], new_state: Optional[int], expected_state: int) -> bool:
         return old_state != expected_state and new_state == expected_state
 
-    def _print_current_av_state(self, args: Namespace, av_state: Optional[int]):
+    def _print_current_av_state(self, args: Args, av_state: Optional[int]):
         if args.verbose or args.debug:
             print(f"Current autovacuum mode: {av_state}")
 
-    def _print_av_state_changed(self, args: Namespace, new_av_state: Optional[int]):
+    def _print_av_state_changed(self, args: Args, new_av_state: Optional[int]):
         if args.verbose or args.debug:
             av_mode = {
                 0: "disabled",
                 1: "full",
                 2: "incremental",
-            }.get(new_av_state, "unknown") # type: ignore
+            }.get(new_av_state, "unknown")  # type: ignore
             print(f"{av_mode} auto_vacuum")
 
-    def _print_av_state_not_changed(self, args: Namespace, av_state: Optional[int]):
+    def _print_av_state_not_changed(self, args: Args, av_state: Optional[int]):
         if args.verbose or args.debug:
             print("Autovacuum mode not changed")
 
-    def set_journal_and_av(self, args: Namespace):
+    def set_journal_and_av(self, args: Args):
         if args.debug:
             print("function run")
         journal_mode = self.exec_query_no_commit("PRAGMA journal_mode;", one=True, return_data=True)
@@ -323,7 +336,7 @@ class DBUtility:
                 return False
             return new_journal_mode != journal_mode
 
-        def set_av(self, args: Namespace) -> bool:
+        def set_av(self, args: Args) -> bool:
             current_av_state = self._get_current_av_state()
             self._print_current_av_state(args, current_av_state)
 
@@ -338,17 +351,17 @@ class DBUtility:
                     self._print_av_state_not_changed(args, current_av_state)
 
             return False
-        
+
         needsvacuum: bool | None = False
-        if "autovacuum" in args and args.autovacuum:
+        if args.autovacuum:
             needsvacuum = set_av(self, args)
 
         wal = ("WAL", "wal", "Wal", "WAl")
         rollback = ("delete", "Delete", "DELETE")
 
-        if "wal" in args and args.wal and journal_mode not in wal:
+        if args.wal and journal_mode not in wal:
             needsvacuum = setwal()
-        elif "rollback" in args and args.rollback and journal_mode not in rollback:
+        elif args.rollback and journal_mode not in rollback:
             needsvacuum = set_del(self)
 
         if needsvacuum:
